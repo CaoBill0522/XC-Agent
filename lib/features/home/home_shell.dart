@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -56,21 +58,51 @@ class _NarrowHomeState extends ConsumerState<_NarrowHome> {
           ],
         ),
       ),
-      floatingActionButton: MiuixFloatingActionButton(
-        onPressed: () async => _openChat(await createConversation(ref)),
-        child: MiuixIcon(vector: AppIcons.add, tint: colors.onPrimary),
-      ),
       content: (padding) => Material(
         type: MaterialType.transparency,
-        child: MiuixScrollBehaviorListener(
-          behavior: _scrollBehavior,
-          child: ConversationList(
-            padding: padding.copyWith(bottom: padding.bottom + 96),
-            onOpen: _openChat,
-          ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            MiuixScrollBehaviorListener(
+              behavior: _scrollBehavior,
+              child: ConversationList(
+                padding: padding.copyWith(bottom: padding.bottom + 96),
+                onOpen: _openChat,
+              ),
+            ),
+            // 新建按钮自己定位：miuix 脚手架把 FAB 放在「12 + 底部安全区」处，
+            // iPhone 上底边距 46、右边距 12，不对称。这里让右、下边距相等。
+            CornerFab(
+              child: MiuixFloatingActionButton(
+                onPressed: () async => _openChat(await createConversation(ref)),
+                child: MiuixIcon(vector: AppIcons.add, tint: colors.onPrimary),
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+}
+
+/// 右下角悬浮按钮：到屏幕右边和底边的距离相等。
+///
+/// iOS 底部安全区里只有一条很细的 Home 指示条，按钮可以压住安全区，距离取 24
+/// （与屏幕圆角大致同心）；其它平台底部可能是导航按钮，必须避开，距离取
+/// 「底部安全区 + 12」与 24 中的较大值，右边距同步加大以保持相等。
+class CornerFab extends StatelessWidget {
+  const CornerFab({super.key, required this.child});
+
+  final Widget child;
+
+  static double gapFor(TargetPlatform platform, EdgeInsets safe) =>
+      platform == TargetPlatform.iOS ? 24 : math.max(24, safe.bottom + 12);
+
+  @override
+  Widget build(BuildContext context) {
+    final safe = MediaQuery.paddingOf(context);
+    final gap = gapFor(Theme.of(context).platform, safe);
+    return Positioned(right: gap + safe.right, bottom: gap, child: child);
   }
 }
 

@@ -562,6 +562,28 @@ void main() {
     await _close(tester);
   });
 
+  testWidgets(
+    '首页新建按钮：右边距与底边距相等',
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    (tester) async {
+      tester.view.padding = const FakeViewPadding(top: 62, bottom: 34);
+      addTearDown(tester.view.resetPadding);
+      await _open(tester, const HomeShell());
+      final fab = tester.getRect(find.byType(MiuixFloatingActionButton));
+      const screen = Size(402, 874);
+      expect(screen.width - fab.right, 24);
+      expect(screen.height - fab.bottom, 24);
+      await _close(tester);
+    },
+  );
+
+  test('非 iOS 平台：底部有导航栏时按钮避开，右边距同步加大', () {
+    const safe = EdgeInsets.only(bottom: 48);
+    expect(CornerFab.gapFor(TargetPlatform.android, safe), 60);
+    expect(CornerFab.gapFor(TargetPlatform.android, EdgeInsets.zero), 24);
+    expect(CornerFab.gapFor(TargetPlatform.iOS, safe), 24);
+  });
+
   testWidgets('模型选择：三种模式切换、接力排序', (tester) async {
     await _open(tester, ParticipantPickerPage(conversationId: chainConv));
     expect(find.text('执行顺序（第 1 步收到原始问题，之后每步收到原始问题 + 上一步结果）'), findsOneWidget);
