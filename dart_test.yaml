@@ -1,0 +1,4 @@
+tags:
+  live:
+    # 依赖本地模拟服务，默认跳过；手动运行：flutter test --tags live --run-skipped
+    skip: "需要本地模拟服务（见 tool/mock_server.py）"

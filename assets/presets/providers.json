@@ -1,0 +1,60 @@
+{
+  "_comment": "厂商预设。新增厂商只需在 presets 里加一项。endpoints 的第一项为默认协议；fallbackModels 用于厂商不提供 /models 接口或拉取失败时。",
+  "presets": [
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "endpoints": [
+        { "protocol": "openai_responses", "baseUrl": "https://api.openai.com/v1" },
+        { "protocol": "openai_chat", "baseUrl": "https://api.openai.com/v1" }
+      ],
+      "fallbackModels": []
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "endpoints": [
+        { "protocol": "anthropic", "baseUrl": "https://api.anthropic.com" }
+      ],
+      "fallbackModels": []
+    },
+    {
+      "id": "xai",
+      "name": "xAI (Grok)",
+      "endpoints": [
+        { "protocol": "openai_responses", "baseUrl": "https://api.x.ai/v1" },
+        { "protocol": "openai_chat", "baseUrl": "https://api.x.ai/v1" }
+      ],
+      "fallbackModels": []
+    },
+    {
+      "id": "zhipu",
+      "name": "智谱 (GLM)",
+      "endpoints": [
+        { "protocol": "openai_chat", "baseUrl": "https://open.bigmodel.cn/api/paas/v4" },
+        { "protocol": "anthropic", "baseUrl": "https://open.bigmodel.cn/api/anthropic" }
+      ],
+      "fallbackModels": ["glm-5.1", "glm-5", "glm-4.7", "glm-4.5"]
+    },
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "_note": "默认走 OpenAI 格式；开启联网搜索时自动改走同 Key 的 Anthropic 兼容接口（官方 2026-10 起支持服务端 web_search）。",
+      "endpoints": [
+        { "protocol": "openai_chat", "baseUrl": "https://api.deepseek.com" },
+        { "protocol": "anthropic", "baseUrl": "https://api.deepseek.com/anthropic" }
+      ],
+      "fallbackModels": ["deepseek-flash", "deepseek-v4-pro"]
+    },
+    {
+      "id": "custom",
+      "name": "自定义 / 中转站",
+      "endpoints": [
+        { "protocol": "openai_chat", "baseUrl": "" },
+        { "protocol": "openai_responses", "baseUrl": "" },
+        { "protocol": "anthropic", "baseUrl": "" }
+      ],
+      "fallbackModels": []
+    }
+  ]
+}
