@@ -117,3 +117,9 @@ test/               单元测试、组件测试、冒烟测试
 
 复制自 flutter_miuix 1.3.0 的 `MiuixTextField`（Apache-2.0），只增加了 `autocorrect` / `enableSuggestions` 参数。
 原组件没有暴露这两个参数，iOS 会把 URL、API Key、模型名等自动纠错（例如把 `gpt` 改成 `got`）。
+
+## 许可证
+
+[MIT](LICENSE)。
+
+`lib/ui/vendor/app_text_field.dart` 改编自 flutter_miuix，仍适用 Apache-2.0 许可证（文件开头注明了来源、SPDX 许可证标识和所做的修改）。
