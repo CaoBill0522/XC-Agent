@@ -6,8 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/appearance.dart';
 import 'data/providers.dart';
+import 'l10n/language.dart';
+import 'l10n/tr.dart';
 import 'features/home/home_shell.dart';
 import 'features/lock/app_lock.dart';
+import 'features/onboarding/onboarding.dart';
 import 'ui/animated_miuix_theme.dart';
 
 class AgentApp extends ConsumerWidget {
@@ -16,6 +19,7 @@ class AgentApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appearance = ref.watch(appearanceProvider);
+    ref.watch(languageProvider);
     // iCloud 同步（开关打开时）随 App 启动。
     ref.read(syncServiceProvider).start();
     return MiuixThemeController(
@@ -25,10 +29,10 @@ class AgentApp extends ConsumerWidget {
         builder: (context) {
           final theme = MiuixTheme.of(context);
           return MaterialApp(
-            title: 'Agent',
+            title: 'XCAgent',
             debugShowCheckedModeBanner: false,
-            // 中文环境下文本选择菜单等系统控件显示中文。
-            locale: const Locale('zh', 'CN'),
+            // 文本选择菜单等系统控件跟界面语言一致。
+            locale: L10n.locale,
             supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
             localizationsDelegates: const [
               GlobalMaterialLocalizations.delegate,
@@ -57,7 +61,7 @@ class AgentApp extends ConsumerWidget {
             // 切换深色模式 / 主题色时 miuix 配色平滑过渡。
             builder: (context, child) =>
                 AnimatedMiuixTheme(child: AppLockGate(child: child!)),
-            home: const HomeShell(),
+            home: const OnboardingGate(child: HomeShell()),
           );
         },
       ),

@@ -8,6 +8,7 @@ import '../../data/tool_service.dart';
 import '../../ui/app_icons.dart';
 import '../../ui/dialogs.dart';
 import '../../ui/settings_widgets.dart';
+import '../../l10n/tr.dart';
 
 /// 工具调用设置：总开关、内置工具、远程 MCP 服务器。
 class ToolsPage extends ConsumerStatefulWidget {
@@ -32,13 +33,13 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
     final t = _tools;
     final on = t.enabled;
     return SettingsScaffold(
-      title: '工具',
+      title: tr('工具'),
       children: [
         SettingsGroup(
           children: [
             MiuixSwitchPreference(
-              title: '工具调用',
-              summary: '让模型在回答时使用下面的工具（需要模型支持函数调用）',
+              title: tr('工具调用'),
+              summary: tr('让模型在回答时使用下面的工具（需要模型支持函数调用）'),
               value: on,
               onChanged: (v) async {
                 await t.setEnabled(v);
@@ -48,15 +49,15 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
           ],
         ),
         SettingsGroup(
-          title: '内置工具（在本机执行）',
+          title: tr('内置工具（在本机执行）'),
           children: [
             for (final b in BuiltinTool.values)
               MiuixSwitchPreference(
                 title: b.label,
                 summary: switch (b) {
-                  BuiltinTool.fetchUrl => '打开网址，读取网页正文',
-                  BuiltinTool.time => '获取当前日期、时间和时区',
-                  BuiltinTool.calculator => '精确计算数学表达式',
+                  BuiltinTool.fetchUrl => tr('打开网址，读取网页正文'),
+                  BuiltinTool.time => tr('获取当前日期、时间和时区'),
+                  BuiltinTool.calculator => tr('精确计算数学表达式'),
                 },
                 value: t.builtinEnabled(b),
                 enabled: on,
@@ -68,16 +69,16 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
           ],
         ),
         SettingsGroup(
-          title: 'MCP 服务器',
+          title: tr('MCP 服务器'),
           children: [
             for (final s in t.servers)
               MiuixArrowPreference(
                 title: s.name,
-                summary: s.enabled ? s.url : '已停用 · ${s.url}',
+                summary: s.enabled ? s.url : trArgs('已停用 · {0}', [s.url]),
                 onClick: () => _edit(s),
               ),
             MiuixArrowPreference(
-              title: '添加 MCP 服务器',
+              title: tr('添加 MCP 服务器'),
               startAction: Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: MiuixIcon(
@@ -93,9 +94,9 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
           child: MiuixText(
-            '支持通过网址连接的 MCP 服务器（Streamable HTTP），手机和电脑都能用。'
-            '需要在电脑上启动程序的本地 MCP（stdio）在 iOS 上无法运行。\n\n'
-            '模型调用工具前不会再问你；只添加你信任的服务器。',
+            tr(
+              '支持通过网址连接的 MCP 服务器（Streamable HTTP），手机和电脑都能用。需要在电脑上启动程序的本地 MCP（stdio）在 iOS 上无法运行。\n\n模型调用工具前不会再问你；只添加你信任的服务器。',
+            ),
             fontSize: 12,
             color: colors.onSurfaceVariantSummary,
           ),
@@ -153,7 +154,7 @@ class _McpServerPageState extends ConsumerState<McpServerPage> {
     final url = _url.text.trim();
     final uri = Uri.tryParse(url);
     if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
-      _snackbar.showSnackbar('请填写以 http:// 或 https:// 开头的网址');
+      _snackbar.showSnackbar(tr('请填写以 http:// 或 https:// 开头的网址'));
       return null;
     }
     final name = _name.text.trim().isEmpty ? uri.host : _name.text.trim();
@@ -189,9 +190,9 @@ class _McpServerPageState extends ConsumerState<McpServerPage> {
     if (s == null) return;
     final ok = await showConfirm(
       context,
-      title: '删除 MCP 服务器',
-      message: '「${s.name}」将被删除。',
-      confirmText: '删除',
+      title: tr('删除 MCP 服务器'),
+      message: trArgs('「{0}」将被删除。', [s.name]),
+      confirmText: tr('删除'),
       destructive: true,
     );
     if (!ok) return;
@@ -204,14 +205,14 @@ class _McpServerPageState extends ConsumerState<McpServerPage> {
     final colors = MiuixTheme.of(context).colors;
     final found = _found;
     return SettingsScaffold(
-      title: widget.server == null ? '添加 MCP 服务器' : 'MCP 服务器',
+      title: widget.server == null ? tr('添加 MCP 服务器') : tr('MCP 服务器'),
       snackbar: _snackbar,
       actions: [
         if (widget.server != null)
           AppIconButton(icon: AppIcons.delete, onPressed: _delete),
       ],
       bottomBar: PrimaryButton(
-        text: '保存',
+        text: tr('保存'),
         onPressed: () async {
           if (await _save() != null && context.mounted) {
             Navigator.of(context).maybePop();
@@ -223,23 +224,23 @@ class _McpServerPageState extends ConsumerState<McpServerPage> {
           children: [
             SettingsField(
               controller: _name,
-              label: '名称（可选）',
+              label: tr('名称（可选）'),
               autocorrect: true,
             ),
             SettingsField(
               controller: _url,
-              label: '网址',
-              hint: '如 https://example.com/mcp',
+              label: tr('网址'),
+              hint: tr('如 https://example.com/mcp'),
               keyboardType: TextInputType.url,
             ),
             SettingsField(
               controller: _token,
-              label: '访问令牌（可选）',
-              hint: '以 Bearer 方式发送，存在系统钥匙串里',
+              label: tr('访问令牌（可选）'),
+              hint: tr('以 Bearer 方式发送，存在系统钥匙串里'),
               obscure: true,
             ),
             MiuixSwitchPreference(
-              title: '启用',
+              title: tr('启用'),
               value: _enabled,
               onChanged: (v) => setState(() => _enabled = v),
             ),
@@ -248,10 +249,10 @@ class _McpServerPageState extends ConsumerState<McpServerPage> {
         SettingsGroup(
           children: [
             MiuixArrowPreference(
-              title: _testing ? '正在连接…' : '测试连接',
+              title: _testing ? tr('正在连接…') : tr('测试连接'),
               summary: found == null
-                  ? '保存并列出服务器提供的工具'
-                  : '找到 ${found.length} 个工具',
+                  ? tr('保存并列出服务器提供的工具')
+                  : trArgs('找到 {0} 个工具', [found.length]),
               enabled: !_testing,
               onClick: _test,
             ),
@@ -259,7 +260,7 @@ class _McpServerPageState extends ConsumerState<McpServerPage> {
         ),
         if (found != null && found.isNotEmpty)
           SettingsGroup(
-            title: '工具',
+            title: tr('工具'),
             children: [
               for (final t in found)
                 MiuixBasicComponent(
@@ -272,7 +273,7 @@ class _McpServerPageState extends ConsumerState<McpServerPage> {
           Padding(
             padding: const EdgeInsets.fromLTRB(28, 0, 28, 0),
             child: MiuixText(
-              '服务器没有提供任何工具',
+              tr('服务器没有提供任何工具'),
               fontSize: 12,
               color: colors.onSurfaceVariantSummary,
             ),

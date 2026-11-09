@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../../l10n/tr.dart';
+
 /// 面向用户的请求错误。[message] 直接显示在界面上。
 class ApiException implements Exception {
   ApiException(this.message, {this.statusCode, this.detail});
@@ -26,29 +28,29 @@ class ApiException implements Exception {
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
       case DioExceptionType.transformTimeout:
-        return ApiException('请求超时，请检查网络或地址');
+        return ApiException(tr('请求超时，请检查网络或地址'));
       case DioExceptionType.connectionError:
-        return ApiException('无法连接到服务器，请检查地址和网络', detail: e.message);
+        return ApiException(tr('无法连接到服务器，请检查地址和网络'), detail: e.message);
       case DioExceptionType.badCertificate:
-        return ApiException('证书校验失败');
+        return ApiException(tr('证书校验失败'));
       case DioExceptionType.cancel:
-        return ApiException('已取消');
+        return ApiException(tr('已取消'));
       case DioExceptionType.badResponse:
       case DioExceptionType.unknown:
         break;
     }
 
     final message = switch (status) {
-      400 => '请求参数错误',
-      401 => 'API Key 无效或未填写',
-      402 => '账户余额不足',
-      403 => '没有权限（Key 无权访问，或地区受限）',
-      404 => '接口不存在，请检查地址或协议',
-      405 => '接口不支持该请求方式',
-      429 => '请求过于频繁或额度用尽',
-      final s? when s >= 500 => '服务端错误（$s）',
-      final s? => '请求失败（$s）',
-      null => '请求失败',
+      400 => tr('请求参数错误'),
+      401 => tr('API Key 无效或未填写'),
+      402 => tr('账户余额不足'),
+      403 => tr('没有权限（Key 无权访问，或地区受限）'),
+      404 => tr('接口不存在，请检查地址或协议'),
+      405 => tr('接口不支持该请求方式'),
+      429 => tr('请求过于频繁或额度用尽'),
+      final s? when s >= 500 => trArgs('服务端错误（{0}）', [s]),
+      final s? => trArgs('请求失败（{0}）', [s]),
+      null => tr('请求失败'),
     };
     return ApiException(
       message,

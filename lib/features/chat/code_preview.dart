@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../data/ids.dart';
+import '../../l10n/tr.dart';
 import '../../ui/app_icons.dart';
 import '../../ui/links.dart';
 import '../../ui/top_bar_text.dart';
@@ -70,7 +71,7 @@ String previewDocument(PreviewKind kind, String code, {required bool dark}) {
           '<div id="err"></div><script>'
           "mermaid.initialize({startOnLoad:false,theme:'${dark ? 'dark' : 'default'}'});"
           "mermaid.run().catch(e=>{document.getElementById('err').textContent="
-          "'图表语法有误：'+(e.message||e)});"
+          "${jsonEncode(tr('图表语法有误：'))}+(e.message||e)});"
           '</script></body></html>';
   }
 }
@@ -138,7 +139,7 @@ class _CodePreviewPageState extends State<CodePreviewPage> {
     return MiuixScaffold(
       topBar: TopBarTextFix(
         child: MiuixSmallTopAppBar(
-          title: '预览',
+          title: tr('预览'),
           navigationIcon: AppIconButton(
             icon: AppIcons.back,
             onPressed: () => Navigator.of(context).maybePop(),

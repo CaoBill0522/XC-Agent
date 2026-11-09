@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../l10n/tr.dart';
+
 /// 模型能力标签。[id] 存进数据库（Models.capabilitiesJson），不要改。
 enum ModelCapability {
   vision('vision', '识图'),
@@ -7,10 +9,11 @@ enum ModelCapability {
   reasoning('reasoning', '推理'),
   webSearch('web_search', '联网');
 
-  const ModelCapability(this.id, this.label);
+  const ModelCapability(this.id, this._label);
 
   final String id;
-  final String label;
+  final String _label;
+  String get label => tr(_label);
 
   static ModelCapability? fromId(String id) {
     for (final c in values) {

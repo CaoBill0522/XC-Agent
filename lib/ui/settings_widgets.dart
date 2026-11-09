@@ -7,6 +7,7 @@ import 'app_icons.dart';
 import 'measure_size.dart';
 import 'motion.dart';
 import 'top_bar_text.dart';
+import '../l10n/tr.dart';
 
 /// 设置类子页面的统一骨架：大标题顶栏 + 返回按钮 + 可滚动内容 + Snackbar。
 class SettingsScaffold extends StatefulWidget {
@@ -285,7 +286,7 @@ class PrimaryButton extends StatelessWidget {
           animateSize: false,
           alignment: Alignment.center,
           child: MiuixText(
-            loading ? '请稍候…' : text,
+            loading ? tr('请稍候…') : text,
             color: colors.onPrimary,
             fontWeight: FontWeight.w500,
           ),
@@ -328,7 +329,7 @@ class ConfirmDialog extends StatelessWidget {
         padding: const EdgeInsets.only(top: 20),
         child: Row(
           children: [
-            Expanded(child: MiuixTextButton('取消', onPressed: onCancel)),
+            Expanded(child: MiuixTextButton(tr('取消'), onPressed: onCancel)),
             const SizedBox(width: 12),
             Expanded(
               child: MiuixTextButton(

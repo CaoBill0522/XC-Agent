@@ -4,14 +4,16 @@ import 'package:flutter_miuix/miuix.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'providers.dart';
+import '../l10n/tr.dart';
 
 enum ThemeModeSetting {
   system('跟随系统'),
   light('浅色'),
   dark('深色');
 
-  const ThemeModeSetting(this.label);
-  final String label;
+  const ThemeModeSetting(this._label);
+  final String _label;
+  String get label => tr(_label);
 }
 
 class Appearance {

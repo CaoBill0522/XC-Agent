@@ -11,6 +11,7 @@ import '../image_store.dart';
 import '../secure/key_store.dart';
 import 'cloud_store.dart';
 import 'sync_engine.dart';
+import '../../l10n/tr.dart';
 
 /// iCloud 同步的调度：打开开关后，启动时、回到前台时、本地数据变化后
 /// （停 8 秒没有新变化）以及前台每 3 分钟各同步一次。
@@ -126,7 +127,9 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   Future<String?> setEnabled(bool on) async {
     if (on) {
       if (!await _cloud.available()) {
-        return 'iCloud 不可用：请确认这台设备已登录 iCloud，并在「设置 → Apple 账户 → iCloud」里打开 iCloud 云盘';
+        return tr(
+          'iCloud 不可用：请确认这台设备已登录 iCloud，并在「设置 → Apple 账户 → iCloud」里打开 iCloud 云盘',
+        );
       }
       await _prefs.setBool(_enabledKey, true);
       _activate();
@@ -169,7 +172,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     } on SyncException catch (e) {
       lastError = e.message;
     } catch (e) {
-      lastError = '同步失败：$e';
+      lastError = trArgs('同步失败：{0}', [e]);
     } finally {
       syncing = false;
       _quietUntil = DateTime.now().add(const Duration(seconds: 2));

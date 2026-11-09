@@ -10,6 +10,7 @@ import '../../data/repositories/channel_repository.dart';
 import '../../ui/app_icons.dart';
 import '../../ui/dialogs.dart';
 import '../../ui/settings_widgets.dart';
+import '../../l10n/tr.dart';
 
 /// 逻辑模型列表：同名模型已跨渠道合并。
 class ModelsPage extends ConsumerWidget {
@@ -21,11 +22,13 @@ class ModelsPage extends ConsumerWidget {
     final models = ref.watch(modelsProvider);
 
     return SettingsScaffold(
-      title: '模型',
+      title: tr('模型'),
       children: [
         ...models.when(
           loading: () => [const SizedBox.shrink()],
-          error: (e, _) => [Center(child: MiuixText('加载失败：$e'))],
+          error: (e, _) => [
+            Center(child: MiuixText(trArgs('加载失败：{0}', [e]))),
+          ],
           data: (items) => items.isEmpty
               ? [
                   Padding(
@@ -34,7 +37,7 @@ class ModelsPage extends ConsumerWidget {
                       horizontal: 32,
                     ),
                     child: MiuixText(
-                      '还没有模型\n先在「渠道」里添加 API Key 并拉取模型',
+                      tr('还没有模型\n先在「渠道」里添加 API Key 并拉取模型'),
                       textAlign: TextAlign.center,
                       color: colors.onSurfaceVariantSummary,
                     ),
@@ -44,7 +47,7 @@ class ModelsPage extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(28, 4, 28, 8),
                     child: MiuixText(
-                      '不同渠道的同名模型会自动合并，聊天时在这些渠道间轮询。',
+                      tr('不同渠道的同名模型会自动合并，聊天时在这些渠道间轮询。'),
                       fontSize: 13,
                       color: colors.onSurfaceVariantSummary,
                     ),
@@ -56,9 +59,10 @@ class ModelsPage extends ConsumerWidget {
                           title: m.model.displayName,
                           summary: [
                             m.routes.length > 1
-                                ? '${m.routes.length} 个渠道轮询'
-                                : m.routes.firstOrNull?.channel.name ?? '无渠道',
-                            if (!m.model.enabled) '已停用',
+                                ? trArgs('{0} 个渠道轮询', [m.routes.length])
+                                : m.routes.firstOrNull?.channel.name ??
+                                      tr('无渠道'),
+                            if (!m.model.enabled) tr('已停用'),
                           ].join(' · '),
                           bottomAction: m.capabilities.isEmpty
                               ? null
@@ -130,7 +134,7 @@ class _ModelDetailPageState extends ConsumerState<ModelDetailPage> {
         .value
         ?.where((m) => m.model.id == widget.modelId)
         .firstOrNull;
-    if (m == null) return const SettingsScaffold(title: '模型', children: []);
+    if (m == null) return SettingsScaffold(title: tr('模型'), children: []);
 
     if (!_nameLoaded) {
       _nameLoaded = true;
@@ -144,11 +148,11 @@ class _ModelDetailPageState extends ConsumerState<ModelDetailPage> {
       title: m.model.displayName,
       children: [
         SettingsGroup(
-          title: '基本',
+          title: tr('基本'),
           children: [
             SettingsField(
               controller: _name,
-              label: '显示名称',
+              label: tr('显示名称'),
               trailing: Tap(
                 onTap: () {
                   FocusScope.of(context).unfocus();
@@ -156,37 +160,41 @@ class _ModelDetailPageState extends ConsumerState<ModelDetailPage> {
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: MiuixText('保存', color: colors.primary, fontSize: 14),
+                  child: MiuixText(
+                    tr('保存'),
+                    color: colors.primary,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ),
             MiuixSwitchPreference(
-              title: '启用',
-              summary: '停用后不出现在聊天的模型选择里',
+              title: tr('启用'),
+              summary: tr('停用后不出现在聊天的模型选择里'),
               value: m.model.enabled,
               onChanged: (v) => _repo.updateModel(m.model.id, enabled: v),
             ),
           ],
         ),
         SettingsGroup(
-          title: '单价（每百万 token，用于用量统计）',
+          title: tr('单价（每百万 token，用于用量统计）'),
           children: [
-            for (final (input, label) in [(true, '输入'), (false, '输出')])
+            for (final (input, label) in [(true, tr('输入')), (false, tr('输出'))])
               MiuixArrowPreference(
-                title: '$label单价',
+                title: trArgs('{0}单价', [label]),
                 summary: switch (input
                     ? m.model.inputPrice
                     : m.model.outputPrice) {
-                  null => '未设置',
+                  null => tr('未设置'),
                   final v => _fmtPrice(v),
                 },
                 onClick: () async {
                   final cur = input ? m.model.inputPrice : m.model.outputPrice;
                   final v = await showTextInput(
                     context,
-                    title: '$label单价（每百万 token）',
+                    title: trArgs('{0}单价（每百万 token）', [label]),
                     initial: cur == null ? '' : _fmtPrice(cur),
-                    label: '留空表示未设置',
+                    label: tr('留空表示未设置'),
                     autocorrect: false,
                   );
                   if (v == null) return;
@@ -204,16 +212,16 @@ class _ModelDetailPageState extends ConsumerState<ModelDetailPage> {
           ],
         ),
         SettingsGroup(
-          title: '能力（按名称自动识别，可手动修改）',
+          title: tr('能力（按名称自动识别，可手动修改）'),
           children: [
             for (final c in ModelCapability.values)
               MiuixSwitchPreference(
                 title: c.label,
                 summary: switch (c) {
-                  ModelCapability.vision => '可以发送图片给它',
-                  ModelCapability.imageGen => '可以生成图片',
-                  ModelCapability.reasoning => '会输出思考过程',
-                  ModelCapability.webSearch => '支持厂商原生联网搜索',
+                  ModelCapability.vision => tr('可以发送图片给它'),
+                  ModelCapability.imageGen => tr('可以生成图片'),
+                  ModelCapability.reasoning => tr('会输出思考过程'),
+                  ModelCapability.webSearch => tr('支持厂商原生联网搜索'),
                 },
                 value: caps.contains(c),
                 onChanged: (v) => _repo.updateModel(
@@ -225,10 +233,10 @@ class _ModelDetailPageState extends ConsumerState<ModelDetailPage> {
         ),
         if (m.routes.length > 1)
           SettingsGroup(
-            title: '多渠道策略',
+            title: tr('多渠道策略'),
             children: [
               MiuixOverlayDropdownPreference(
-                title: '路由策略',
+                title: tr('路由策略'),
                 summary: strategy.description,
                 items: [for (final s in RouteStrategy.values) s.label],
                 selectedIndex: RouteStrategy.values.indexOf(strategy),
@@ -240,19 +248,19 @@ class _ModelDetailPageState extends ConsumerState<ModelDetailPage> {
             ],
           ),
         SettingsGroup(
-          title: '渠道（${m.routes.length}）',
+          title: trArgs('渠道（{0}）', [m.routes.length]),
           children: [
             for (final r in m.routes)
               MiuixBasicComponent(
                 title: r.channel.name,
                 summary: [
-                  '上游：${r.route.upstreamModel}',
+                  trArgs('上游：{0}', [r.route.upstreamModel]),
                   if (strategy == RouteStrategy.weighted)
-                    '权重 ${r.route.weight}',
+                    trArgs('权重 {0}', [r.route.weight]),
                   if (strategy == RouteStrategy.failover)
-                    '优先级 ${r.route.priority}',
-                  if (!r.channel.enabled) '渠道已停用',
-                  if (router.isCoolingDown(r.channel.id)) '冷却中',
+                    trArgs('优先级 {0}', [r.route.priority]),
+                  if (!r.channel.enabled) tr('渠道已停用'),
+                  if (router.isCoolingDown(r.channel.id)) tr('冷却中'),
                 ].join(' · '),
                 startAction: Padding(
                   padding: const EdgeInsets.only(right: 12),
@@ -271,13 +279,13 @@ class _ModelDetailPageState extends ConsumerState<ModelDetailPage> {
                 onClick: switch (strategy) {
                   RouteStrategy.weighted => () => _editNumber(
                     context,
-                    '权重',
+                    tr('权重'),
                     r.route.weight,
                     (v) => _repo.updateRoute(r.route.id, weight: v),
                   ),
                   RouteStrategy.failover => () => _editNumber(
                     context,
-                    '优先级（数字越小越优先）',
+                    tr('优先级（数字越小越优先）'),
                     r.route.priority,
                     (v) => _repo.updateRoute(r.route.id, priority: v),
                   ),
@@ -289,9 +297,10 @@ class _ModelDetailPageState extends ConsumerState<ModelDetailPage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 4, 28, 0),
           child: MiuixText(
-            '请求失败（网络错误、Key 无效、限流、服务端错误）时自动换下一个渠道；'
-            '连续失败 ${ModelRouter.failureThreshold} 次的渠道冷却 ${ModelRouter.cooldown.inSeconds} 秒。'
-            '要彻底移除某个渠道，请到该渠道的「管理模型」里取消勾选。',
+            trArgs(
+              '请求失败（网络错误、Key 无效、限流、服务端错误）时自动换下一个渠道；连续失败 {0} 次的渠道冷却 {1} 秒。要彻底移除某个渠道，请到该渠道的「管理模型」里取消勾选。',
+              [ModelRouter.failureThreshold, ModelRouter.cooldown.inSeconds],
+            ),
             fontSize: 12,
             color: colors.onSurfaceVariantSummary,
           ),

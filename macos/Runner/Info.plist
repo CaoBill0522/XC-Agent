@@ -14,9 +14,9 @@
 		</dict>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>用于按住说话，把语音转成文字发给 AI</string>
+	<string>用于按住说话，把语音转成文字发给 AI / Hold to talk: turn your voice into text</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>用于把你说的话识别成文字</string>
+	<string>用于把你说的话识别成文字 / Recognize your speech as text</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>

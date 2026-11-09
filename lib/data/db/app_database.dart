@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
+import '../../l10n/tr.dart';
 import 'tables.dart';
 
 part 'app_database.g.dart';
@@ -33,28 +34,28 @@ class AppDatabase extends _$AppDatabase {
       await SyncSchema.install(this);
     },
     onUpgrade: (m, from, to) async {
-      if (from < 2) await m.addColumn(models, models.matchKey);
+      if (from < 2) await _addColumn(m, models, models.matchKey);
       if (from < 3) {
-        await m.addColumn(conversations, conversations.participantsJson);
-        await m.addColumn(conversations, conversations.webSearch);
+        await _addColumn(m, conversations, conversations.participantsJson);
+        await _addColumn(m, conversations, conversations.webSearch);
       }
-      if (from < 4) await m.addColumn(messages, messages.stepIndex);
+      if (from < 4) await _addColumn(m, messages, messages.stepIndex);
       if (from < 5) {
-        await m.addColumn(models, models.inputPrice);
-        await m.addColumn(models, models.outputPrice);
-        await m.addColumn(conversations, conversations.optionsJson);
-        await m.addColumn(messages, messages.kind);
+        await _addColumn(m, models, models.inputPrice);
+        await _addColumn(m, models, models.outputPrice);
+        await _addColumn(m, conversations, conversations.optionsJson);
+        await _addColumn(m, messages, messages.kind);
         await m.createTable(prompts);
         await _seedPrompts();
       }
       if (from < 6) {
-        await m.addColumn(channels, channels.modifiedAt);
-        await m.addColumn(models, models.modifiedAt);
-        await m.addColumn(modelRoutes, modelRoutes.modifiedAt);
-        await m.addColumn(agents, agents.modifiedAt);
-        await m.addColumn(conversations, conversations.modifiedAt);
-        await m.addColumn(prompts, prompts.modifiedAt);
-        await m.addColumn(conversations, conversations.folderId);
+        await _addColumn(m, channels, channels.modifiedAt);
+        await _addColumn(m, models, models.modifiedAt);
+        await _addColumn(m, modelRoutes, modelRoutes.modifiedAt);
+        await _addColumn(m, agents, agents.modifiedAt);
+        await _addColumn(m, conversations, conversations.modifiedAt);
+        await _addColumn(m, prompts, prompts.modifiedAt);
+        await _addColumn(m, conversations, conversations.folderId);
         await m.createTable(folders);
         await m.createTable(tombstones);
         for (final t in SyncSchema.tables) {
@@ -82,6 +83,19 @@ class AppDatabase extends _$AppDatabase {
     },
   );
 
+  /// 加列；列已经存在时跳过（开发期间的旧版本可能已经有这一列，版本号却没跟上）。
+  Future<void> _addColumn(
+    Migrator m,
+    TableInfo table,
+    GeneratedColumn column,
+  ) async {
+    final cols = await customSelect(
+      'PRAGMA table_info(${table.actualTableName})',
+    ).get();
+    if (cols.any((c) => c.read<String>('name') == column.name)) return;
+    await m.addColumn(table, column);
+  }
+
   /// 内置的几条常用提示词，用户可以改删。
   static const defaultPrompts = [
     ('翻译成英文', '把下面的内容翻译成地道的英文，只输出译文：\n\n'),
@@ -91,9 +105,35 @@ class AppDatabase extends _$AppDatabase {
     ('通俗解释', '用通俗易懂的话解释下面的内容，必要时举个例子：\n\n'),
   ];
 
+  static const defaultPromptsEn = [
+    (
+      'Translate to Chinese',
+      'Translate the following into natural Chinese. Output only the translation:\n\n',
+    ),
+    (
+      'Key points',
+      'Summarize the following as a few bullet points, one sentence each:\n\n',
+    ),
+    (
+      'Review code',
+      'Review the code below for bugs, edge cases and possible improvements, ordered by severity:\n\n',
+    ),
+    (
+      'Polish writing',
+      'Polish the text below so it reads smoothly and naturally, without changing its meaning:\n\n',
+    ),
+    (
+      'Explain simply',
+      'Explain the following in plain words, with an example if it helps:\n\n',
+    ),
+  ];
+
   Future<void> _seedPrompts() async {
-    for (final (i, (title, content)) in defaultPrompts.indexed) {
+    // 首次安装时按当前界面语言放内置提示词。
+    final seeds = L10n.isEn ? defaultPromptsEn : defaultPrompts;
+    for (final (i, (title, content)) in seeds.indexed) {
       await into(prompts).insert(
+        mode: InsertMode.insertOrIgnore,
         PromptsCompanion.insert(
           id: 'builtin-$i',
           title: title,

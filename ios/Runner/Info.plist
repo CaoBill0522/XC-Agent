@@ -20,19 +20,19 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>用于选择图片发送给 AI 识别</string>
+	<string>用于选择图片发送给 AI 识别 / Pick photos to send to the AI</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>用于保存 AI 生成的图片到相册</string>
+	<string>用于保存 AI 生成的图片到相册 / Save AI-generated images to Photos</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>用于应用锁：打开 App 时验证身份</string>
+	<string>用于应用锁：打开 App 时验证身份 / Unlock XCAgent with Face ID</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>用于按住说话，把语音转成文字发给 AI</string>
+	<string>用于按住说话，把语音转成文字发给 AI / Hold to talk: turn your voice into text</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>用于把你说的话识别成文字</string>
+	<string>用于把你说的话识别成文字 / Recognize your speech as text</string>
 	<key>NSCameraUsageDescription</key>
-	<string>用于拍照发送给 AI 识别</string>
+	<string>用于拍照发送给 AI 识别 / Take photos to send to the AI</string>
 	<key>CFBundleDisplayName</key>
-	<string>Agent</string>
+	<string>XCAgent</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -40,7 +40,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>agent</string>
+	<string>XCAgent</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

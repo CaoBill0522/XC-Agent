@@ -8,6 +8,7 @@ import 'adapters/adapter.dart';
 import 'api_error.dart';
 import 'endpoint.dart';
 import 'sse.dart';
+import '../../l10n/tr.dart';
 
 /// 生成的图片。
 class GeneratedImage {
@@ -94,7 +95,7 @@ class ChatClient {
     CancelToken? cancel,
   }) async {
     if (!endpoint.protocol.isOpenAI) {
-      throw ApiException('该渠道使用 Anthropic 协议，不支持生图接口');
+      throw ApiException(tr('该渠道使用 Anthropic 协议，不支持生图接口'));
     }
     final isGptImage = model.toLowerCase().contains('gpt-image');
     final Response<Object?> res;
@@ -143,7 +144,7 @@ class ChatClient {
     final json = res.data is String ? jsonDecode(res.data as String) : res.data;
     final data = ((json is Map) ? json['data'] : null) as List?;
     if (data == null || data.isEmpty) {
-      throw ApiException('生图接口没有返回图片', detail: jsonEncode(json));
+      throw ApiException(tr('生图接口没有返回图片'), detail: jsonEncode(json));
     }
     final out = <GeneratedImage>[];
     for (final d in data.whereType<Map>()) {

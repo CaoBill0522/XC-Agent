@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../../data/repositories/channel_repository.dart';
+import '../../l10n/tr.dart';
 
 /// 路由策略。[id] 存进 Models.routeStrategy。
 enum RouteStrategy {
@@ -8,10 +9,12 @@ enum RouteStrategy {
   weighted('weighted', '加权随机', '按权重比例随机选择'),
   failover('failover', '主备', '按优先级，前一个失败才用下一个');
 
-  const RouteStrategy(this.id, this.label, this.description);
+  const RouteStrategy(this.id, this._label, this._description);
   final String id;
-  final String label;
-  final String description;
+  final String _label;
+  final String _description;
+  String get label => tr(_label);
+  String get description => tr(_description);
 
   static RouteStrategy fromId(String id) =>
       values.firstWhere((s) => s.id == id, orElse: () => roundRobin);

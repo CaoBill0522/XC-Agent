@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 
 import '../api/protocol.dart';
+import '../../l10n/tr.dart';
 
 class PresetEndpoint {
   const PresetEndpoint(this.protocol, this.baseUrl);
@@ -15,13 +16,16 @@ class PresetEndpoint {
 class ProviderPreset {
   const ProviderPreset({
     required this.id,
-    required this.name,
+    required this._name,
     required this.endpoints,
     required this.fallbackModels,
   });
 
   final String id;
-  final String name;
+  final String _name;
+
+  /// 厂商名称（预设里的中文名显示时翻译，见 tool/l10n/keys.py）。
+  String get name => tr(_name);
 
   /// 支持的协议及对应地址，第一项为默认。
   final List<PresetEndpoint> endpoints;

@@ -10,6 +10,7 @@ import '../../data/providers.dart';
 import '../../ui/app_icons.dart';
 import '../../ui/settings_widgets.dart';
 import '../../ui/vendor/app_text_field.dart';
+import '../../l10n/tr.dart';
 
 /// 从云端拉取渠道的模型列表并勾选启用。
 class ModelPickerPage extends ConsumerStatefulWidget {
@@ -150,7 +151,7 @@ class _ModelPickerPageState extends ConsumerState<ModelPickerPage> {
         .toList();
 
     return SettingsScaffold(
-      title: '选择模型',
+      title: tr('选择模型'),
       snackbar: _snackbar,
       actions: [
         AppIconButton(
@@ -160,7 +161,7 @@ class _ModelPickerPageState extends ConsumerState<ModelPickerPage> {
         ),
       ],
       bottomBar: PrimaryButton(
-        text: '保存（已选 ${_selected.length} 个）',
+        text: trArgs('保存（已选 {0} 个）', [_selected.length]),
         loading: _saving,
         onPressed: _save,
       ),
@@ -170,7 +171,7 @@ class _ModelPickerPageState extends ConsumerState<ModelPickerPage> {
             padding: const EdgeInsets.symmetric(vertical: 24),
             child: Center(
               child: MiuixText(
-                '正在从云端拉取模型…',
+                tr('正在从云端拉取模型…'),
                 color: colors.onSurfaceVariantSummary,
               ),
             ),
@@ -183,7 +184,10 @@ class _ModelPickerPageState extends ConsumerState<ModelPickerPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    MiuixText('拉取失败：${e.message}', color: colors.error),
+                    MiuixText(
+                      trArgs('拉取失败：{0}', [e.message]),
+                      color: colors.error,
+                    ),
                     if (e.detail case final d?)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
@@ -196,8 +200,8 @@ class _ModelPickerPageState extends ConsumerState<ModelPickerPage> {
                     const SizedBox(height: 6),
                     MiuixText(
                       _usingFallback
-                          ? '已显示内置模型列表，也可以在下方手动添加。'
-                          : '可以在下方手动添加模型 ID。',
+                          ? tr('已显示内置模型列表，也可以在下方手动添加。')
+                          : tr('可以在下方手动添加模型 ID。'),
                       fontSize: 13,
                       color: colors.onSurfaceVariantSummary,
                     ),
@@ -211,7 +215,7 @@ class _ModelPickerPageState extends ConsumerState<ModelPickerPage> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: AppTextField(
               controller: _search,
-              label: '搜索模型',
+              label: tr('搜索模型'),
               useLabelAsPlaceholder: true,
               singleLine: true,
               autocorrect: false,
@@ -232,18 +236,18 @@ class _ModelPickerPageState extends ConsumerState<ModelPickerPage> {
               children: [
                 Expanded(
                   child: MiuixText(
-                    '共 ${visible.length} 个',
+                    trArgs('共 {0} 个', [visible.length]),
                     fontSize: 13,
                     color: colors.onSurfaceVariantSummary,
                   ),
                 ),
                 _LinkButton(
-                  '选中对话模型',
+                  tr('选中对话模型'),
                   onTap: () => setState(() => _selected.addAll(visibleChat)),
                 ),
                 const SizedBox(width: 16),
                 _LinkButton(
-                  '清空',
+                  tr('清空'),
                   onTap: () => setState(() => _selected.removeAll(visible)),
                 ),
               ],
@@ -265,16 +269,16 @@ class _ModelPickerPageState extends ConsumerState<ModelPickerPage> {
         ],
         if (!_loading)
           SettingsGroup(
-            title: '手动添加',
+            title: tr('手动添加'),
             children: [
               SettingsField(
                 controller: _manual,
-                label: '模型 ID',
-                hint: '列表里没有的模型，可以直接填写名称',
+                label: tr('模型 ID'),
+                hint: tr('列表里没有的模型，可以直接填写名称'),
                 trailing: Tap(
                   onTap: _addManual,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: EdgeInsets.symmetric(horizontal: 12),
                     child: MiuixIcon(
                       vector: AppIcons.add,
                       size: 22,
@@ -304,10 +308,10 @@ class _ModelRow extends StatelessWidget {
   final VoidCallback onToggle;
 
   // 图片模型已有「生图」能力标签，不再重复标注类型。
-  static const _kindLabels = {
-    ModelKind.embedding: '嵌入',
-    ModelKind.audio: '语音',
-    ModelKind.other: '其他',
+  static Map<ModelKind, String> get _kindLabels => {
+    ModelKind.embedding: tr('嵌入'),
+    ModelKind.audio: tr('语音'),
+    ModelKind.other: tr('其他'),
   };
 
   @override

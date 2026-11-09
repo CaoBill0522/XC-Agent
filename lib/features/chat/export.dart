@@ -14,6 +14,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/chat/chat_types.dart';
 import '../../core/chat/participant.dart';
+import '../../data/chat_service.dart';
 import '../../data/db/app_database.dart';
 import '../../data/providers.dart';
 import '../../ui/app_icons.dart';
@@ -21,6 +22,7 @@ import '../../ui/dialogs.dart';
 import '../../ui/motion.dart';
 import '../../ui/top_bar_text.dart';
 import 'message_views.dart';
+import '../../l10n/tr.dart';
 
 /// 导出的对话内容：哪些消息、每条回答的标签。
 class ExportItem {
@@ -62,8 +64,8 @@ String exportLabel(
   String Function(Participant) name,
 ) {
   final n = name(Participant(modelId: m.modelId ?? '', agentId: m.agentId));
-  if (m.kind == MsgKind.judge) return '裁判 · $n';
-  if (m.kind == MsgKind.summary) return '辩论总结 · $n';
+  if (m.kind == MsgKind.judge) return trArgs('裁判 · {0}', [n]);
+  if (m.kind == MsgKind.summary) return trArgs('辩论总结 · {0}', [n]);
   final siblings = m.groupId == null
       ? const <Message>[]
       : all.where((x) => x.groupId == m.groupId).toList();
@@ -79,10 +81,12 @@ String exportLabel(
             )
             .length +
         1;
-    return '辩论 · $n · 第 $round 轮';
+    return trArgs('辩论 · {0} · 第 {1} 轮', [n, round]);
   }
-  if (m.stepIndex != null) return '接力第 ${m.stepIndex! + 1} 步 · $n';
-  if (siblings.length > 1) return m.adopted ? '$n（已采纳）' : n;
+  if (m.stepIndex != null) {
+    return trArgs('接力第 {0} 步 · {1}', [m.stepIndex! + 1, n]);
+  }
+  if (siblings.length > 1) return m.adopted ? trArgs('{0}（已采纳）', [n]) : n;
   return n;
 }
 
@@ -92,20 +96,22 @@ String conversationMarkdown(String title, List<ExportItem> items) {
   for (final it in items) {
     final parts = ContentPart.decodeList(it.message.partsJson);
     if (it.label == null) {
-      b.write('## 我\n\n');
+      b.write(tr('## 我\n\n'));
       if (parts.quote case final q?) {
         b.write('${q.split('\n').map((l) => '> $l').join('\n')}\n\n');
       }
       for (final f in parts.files) {
         b.write('📎 ${f.name}\n\n');
       }
-      if (parts.images.isNotEmpty) b.write('（${parts.images.length} 张图片）\n\n');
+      if (parts.images.isNotEmpty) {
+        b.write(trArgs('（{0} 张图片）\n\n', [parts.images.length]));
+      }
       if (parts.text.isNotEmpty) b.write('${parts.text}\n\n');
     } else {
       b.write('## ${it.label}\n\n${parts.text.trim()}\n\n');
       final cites = parts.citations;
       if (cites.isNotEmpty) {
-        b.write('来源：\n');
+        b.write(tr('来源：\n'));
         for (final (i, c) in cites.indexed) {
           b.write('${i + 1}. [${c.title ?? c.url}](${c.url})\n');
         }
@@ -119,7 +125,7 @@ String conversationMarkdown(String title, List<ExportItem> items) {
 /// 文件名里不能出现的字符替换掉。
 String safeFileName(String s) {
   final t = s.replaceAll(RegExp(r'[\\/:*?"<>|\n\r\t]'), ' ').trim();
-  return t.isEmpty ? '对话' : (t.length > 40 ? t.substring(0, 40) : t);
+  return t.isEmpty ? tr('对话') : (t.length > 40 ? t.substring(0, 40) : t);
 }
 
 /// 分享文件（系统分享面板）。iPad 上需要给出弹出位置。
@@ -185,7 +191,7 @@ class _ExportImagePageState extends ConsumerState<ExportImagePage> {
       final png = await _capture();
       if (png != null) await action(png);
     } catch (e) {
-      if (mounted) _toast('操作失败：$e');
+      if (mounted) _toast(trArgs('操作失败：{0}', [e]));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -214,13 +220,15 @@ class _ExportImagePageState extends ConsumerState<ExportImagePage> {
           exportLabel(m, messages, (p) => participantLabel(p, models, agents)),
       onlyMessageId: widget.onlyMessageId,
     );
-    final title = conv?.title ?? '对话';
+    final title = conv == null
+        ? tr('对话')
+        : ChatService.displayTitle(conv.title);
 
     return MiuixScaffold(
       snackbarHost: MiuixSnackbarHost(state: _snackbar),
       topBar: TopBarTextFix(
         child: MiuixSmallTopAppBar(
-          title: '生成图片',
+          title: tr('生成图片'),
           navigationIcon: AppIconButton(
             icon: AppIcons.back,
             onPressed: () => Navigator.of(context).maybePop(),
@@ -233,7 +241,7 @@ class _ExportImagePageState extends ConsumerState<ExportImagePage> {
                   await Gal.requestAccess();
                 }
                 await Gal.putImageBytes(png, name: safeFileName(title));
-                _toast('已保存到相册');
+                _toast(tr('已保存到相册'));
               }),
             ),
             Builder(
@@ -332,7 +340,7 @@ class _ExportCanvas extends StatelessWidget {
               ),
             Center(
               child: MiuixText(
-                '由 XC-Agent 生成',
+                tr('由 XCAgent 生成'),
                 fontSize: 11,
                 color: colors.onSurfaceVariantSummary,
               ),
@@ -363,14 +371,14 @@ Future<void> showExportSheet(
     (m) => exportLabel(m, messages, (p) => participantLabel(p, models, agents)),
     onlyMessageId: onlyMessageId,
   );
-  final title = conv?.title ?? '对话';
+  final title = conv?.title ?? tr('对话');
   final md = conversationMarkdown(title, items);
   if (!context.mounted) return;
   await showActionSheet(
     context,
-    title: onlyMessageId == null ? '导出对话' : '分享回答',
+    title: onlyMessageId == null ? tr('导出对话') : tr('分享回答'),
     actions: [
-      SheetAction('生成图片', () {
+      SheetAction(tr('生成图片'), () {
         Navigator.of(context).push(
           appRoute(
             ExportImagePage(
@@ -380,13 +388,13 @@ Future<void> showExportSheet(
           ),
         );
       }, icon: AppIcons.image),
-      SheetAction('分享 Markdown 文件', () async {
+      SheetAction(tr('分享 Markdown 文件'), () async {
         final f = await writeTemp('${safeFileName(title)}.md', utf8.encode(md));
         if (context.mounted) await shareFile(context, f);
       }, icon: AppIcons.share),
-      SheetAction('复制为 Markdown', () {
+      SheetAction(tr('复制为 Markdown'), () {
         Clipboard.setData(ClipboardData(text: md));
-        toast('已复制');
+        toast(tr('已复制'));
       }, icon: AppIcons.copy),
     ],
   );

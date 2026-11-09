@@ -1,3 +1,5 @@
+import '../../l10n/tr.dart';
+
 /// 会话模式。[id] 存进 Conversations.mode，不要改。
 enum ConversationMode {
   /// 一个模型回答。
@@ -15,11 +17,13 @@ enum ConversationMode {
   /// 辩手轮流发言、反驳对方若干轮，最后由总结者给出结论。
   debate('debate', '辩论', '两个或多个模型轮流反驳对方几轮，最后总结出结论');
 
-  const ConversationMode(this.id, this.label, this.description);
+  const ConversationMode(this.id, this._label, this._description);
 
   final String id;
-  final String label;
-  final String description;
+  final String _label;
+  final String _description;
+  String get label => tr(_label);
+  String get description => tr(_description);
 
   /// 是否需要选多个参与者。
   bool get isGroup => this != single;
@@ -48,13 +52,11 @@ String buildChainPrompt({
   String? previousOutput,
 }) {
   if (step == 0 || previousOutput == null) return question;
-  final q = question.trim().isEmpty ? '（见附图）' : question.trim();
-  return '【原始问题】\n$q\n\n'
-      '【上一步分析结果（第 $step 步 · ${previousLabel ?? '上一个模型'}）】\n'
-      '${previousOutput.trim()}\n\n'
-      '你是接力分析中的第 ${step + 1} 步。请结合原始问题和上一步的分析结果，'
-      '继续深入分析：可以补充遗漏、指出并修正错误、完善结论，不必重复已经正确的内容。'
-      '最后给出你的完整回答。';
+  final q = question.trim().isEmpty ? tr('（见附图）') : question.trim();
+  return trArgs(
+    '【原始问题】\n{0}\n\n【上一步分析结果（第 {1} 步 · {2}）】\n{3}\n\n你是接力分析中的第 {4} 步。请结合原始问题和上一步的分析结果，继续深入分析：可以补充遗漏、指出并修正错误、完善结论，不必重复已经正确的内容。最后给出你的完整回答。',
+    [q, step, previousLabel ?? '上一个模型', previousOutput.trim(), step + 1],
+  );
 }
 
 /// 裁判请求：原始问题 + 各模型的回答。
@@ -62,15 +64,15 @@ String buildJudgePrompt({
   required String question,
   required List<(String label, String answer)> answers,
 }) {
-  final q = question.trim().isEmpty ? '（见附图）' : question.trim();
-  final b = StringBuffer('【原始问题】\n$q\n\n');
+  final q = question.trim().isEmpty ? tr('（见附图）') : question.trim();
+  final b = StringBuffer(trArgs('【原始问题】\n{0}\n\n', [q]));
   for (final (i, (label, answer)) in answers.indexed) {
-    b.write('【回答 ${i + 1}：$label】\n${answer.trim()}\n\n');
+    b.write(trArgs('【回答 {0}：{1}】\n{2}\n\n', [i + 1, label, answer.trim()]));
   }
   b.write(
-    '你是裁判。请逐一评价以上回答：指出各自正确与错误的地方、遗漏和亮点，'
-    '给每个回答打分（10 分制），说明最好的是哪一个及原因。'
-    '最后另起一节「综合答案」，取各家所长给出你认为最准确完整的回答。',
+    tr(
+      '你是裁判。请逐一评价以上回答：指出各自正确与错误的地方、遗漏和亮点，给每个回答打分（10 分制），说明最好的是哪一个及原因。最后另起一节「综合答案」，取各家所长给出你认为最准确完整的回答。',
+    ),
   );
   return b.toString();
 }
@@ -84,26 +86,24 @@ String buildDebatePrompt({
   required int rounds,
   required bool summary,
 }) {
-  final q = question.trim().isEmpty ? '（见附图）' : question.trim();
-  final b = StringBuffer('【辩题】\n$q\n\n');
+  final q = question.trim().isEmpty ? tr('（见附图）') : question.trim();
+  final b = StringBuffer(trArgs('【辩题】\n{0}\n\n', [q]));
   if (transcript.isNotEmpty) {
-    b.write('【目前的发言】\n');
+    b.write(tr('【目前的发言】\n'));
     for (final (label, speech) in transcript) {
       b.write('—— $label ——\n${speech.trim()}\n\n');
     }
   }
   if (summary) {
-    b.write(
-      '你是这场辩论的总结者。请客观梳理各方的主要论点和反驳，'
-      '指出哪些观点站得住、哪些被驳倒，最后给出你的结论。',
-    );
+    b.write(tr('你是这场辩论的总结者。请客观梳理各方的主要论点和反驳，指出哪些观点站得住、哪些被驳倒，最后给出你的结论。'));
   } else if (transcript.isEmpty) {
-    b.write('你是辩手「$speaker」，请先就这个问题给出你的观点和理由。');
+    b.write(trArgs('你是辩手「{0}」，请先就这个问题给出你的观点和理由。', [speaker]));
   } else {
     b.write(
-      '你是辩手「$speaker」，现在是第 $round / $rounds 轮。'
-      '请针对其他辩手的观点进行反驳，指出其中的错误或漏洞，同时补充和完善你自己的论点。'
-      '不要重复已经说过的内容。',
+      trArgs(
+        '你是辩手「{0}」，现在是第 {1} / {2} 轮。请针对其他辩手的观点进行反驳，指出其中的错误或漏洞，同时补充和完善你自己的论点。不要重复已经说过的内容。',
+        [speaker, round, rounds],
+      ),
     );
   }
   return b.toString();

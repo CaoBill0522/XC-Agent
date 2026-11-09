@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../../core/chat/chat_types.dart';
 import '../db/app_database.dart';
 import '../ids.dart';
+import '../../l10n/tr.dart';
 
 /// 助手：名称 + 默认模型 + 系统提示词 + 生成参数。
 class AgentRepository {
@@ -31,7 +32,7 @@ class AgentRepository {
     final agentId = id ?? newId();
     final data = AgentsCompanion(
       id: Value(agentId),
-      name: Value(name.trim().isEmpty ? '未命名助手' : name.trim()),
+      name: Value(name.trim().isEmpty ? tr('未命名助手') : name.trim()),
       modelId: Value(modelId),
       avatar: Value(avatar),
       systemPrompt: Value(systemPrompt),

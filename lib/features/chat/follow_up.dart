@@ -9,6 +9,7 @@ import '../../core/api/api_error.dart';
 import '../../data/chat_service.dart';
 import '../../ui/app_icons.dart';
 import '../../ui/motion.dart';
+import '../../l10n/tr.dart';
 
 /// 「新对话追问」时由原 Agent 流式生成的前文总结。
 class SummaryJob extends ChangeNotifier {
@@ -194,14 +195,14 @@ class _SelectableAnswerState extends State<SelectableAnswer> {
           final at = items.isEmpty ? 0 : 1;
           items.insertAll(at, [
             ContextMenuButtonItem(
-              label: '追问',
+              label: tr('追问'),
               onPressed: () {
                 close();
                 actions.quoteHere(sel);
               },
             ),
             ContextMenuButtonItem(
-              label: '新对话追问',
+              label: tr('新对话追问'),
               onPressed: () {
                 close();
                 actions.askInNew(widget.messageId, sel);
@@ -319,10 +320,10 @@ class _SummaryCardState extends State<_SummaryCard> {
     final colors = MiuixTheme.of(context).colors;
     final job = widget.job;
     final status = job.error != null
-        ? '总结失败：${job.error}'
+        ? trArgs('总结失败：{0}', [job.error])
         : job.loading
-        ? '正在总结前文…'
-        : '前文总结（发送时作为背景一起发出）';
+        ? tr('正在总结前文…')
+        : tr('前文总结（发送时作为背景一起发出）');
     return Tap(
       sink: false,
       onTap: job.text.isEmpty

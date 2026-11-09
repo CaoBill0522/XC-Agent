@@ -12,6 +12,7 @@ import '../../data/providers.dart';
 import '../../ui/app_icons.dart';
 import '../../ui/settings_widgets.dart';
 import 'model_picker_page.dart';
+import '../../l10n/tr.dart';
 
 /// 新建（传 [preset]）或编辑（传 [channelId]）渠道。
 class ChannelEditPage extends ConsumerStatefulWidget {
@@ -116,11 +117,11 @@ class _ChannelEditPageState extends ConsumerState<ChannelEditPage> {
   );
 
   String? _validate() {
-    if (_baseUrl.text.trim().isEmpty) return '请填写 Base URL';
+    if (_baseUrl.text.trim().isEmpty) return tr('请填写 Base URL');
     if (Uri.tryParse(_endpoint.baseUrl)?.host.isEmpty ?? true) {
-      return 'Base URL 格式不正确';
+      return tr('Base URL 格式不正确');
     }
-    if (_apiKey.text.trim().isEmpty) return '请填写 API Key';
+    if (_apiKey.text.trim().isEmpty) return tr('请填写 API Key');
     return null;
   }
 
@@ -141,7 +142,10 @@ class _ChannelEditPageState extends ConsumerState<ChannelEditPage> {
       final models = await client.listModels(endpoint);
       result = _TestResult(
         true,
-        '连接正常 · ${sw.elapsedMilliseconds} ms · 发现 ${models.length} 个模型',
+        trArgs('连接正常 · {0} ms · 发现 {1} 个模型', [
+          sw.elapsedMilliseconds,
+          models.length,
+        ]),
       );
     } on ApiException catch (e) {
       // 没有 /models 接口（如智谱）：改用一个已知模型发最小对话请求。
@@ -149,7 +153,9 @@ class _ChannelEditPageState extends ConsumerState<ChannelEditPage> {
       if (model == null) {
         result = _TestResult(
           false,
-          e.isNotFound ? '${e.message}（该渠道可能不提供模型列表，可保存后手动添加模型）' : e.message,
+          e.isNotFound
+              ? trArgs('{0}（该渠道可能不提供模型列表，可保存后手动添加模型）', [e.message])
+              : e.message,
           e.detail,
         );
       } else {
@@ -157,10 +163,18 @@ class _ChannelEditPageState extends ConsumerState<ChannelEditPage> {
           final r = await client.testChat(endpoint, model);
           result = _TestResult(
             true,
-            '${r.message} · ${r.latency.inMilliseconds} ms · 测试模型 $model',
+            trArgs('{0} · {1} ms · 测试模型 {2}', [
+              r.message,
+              r.latency.inMilliseconds,
+              model,
+            ]),
           );
         } on ApiException catch (e2) {
-          result = _TestResult(false, '${e2.message}（测试模型 $model）', e2.detail);
+          result = _TestResult(
+            false,
+            trArgs('{0}（测试模型 {1}）', [e2.message, model]),
+            e2.detail,
+          );
         }
       }
     }
@@ -224,7 +238,7 @@ class _ChannelEditPageState extends ConsumerState<ChannelEditPage> {
     final colors = MiuixTheme.of(context).colors;
     final preset = _preset;
     if (preset == null) {
-      return const SettingsScaffold(title: '编辑渠道', children: []);
+      return SettingsScaffold(title: tr('编辑渠道'), children: []);
     }
 
     final summary = ref
@@ -236,43 +250,45 @@ class _ChannelEditPageState extends ConsumerState<ChannelEditPage> {
     String requestUrlHint() {
       final e = _endpoint;
       return e.baseUrl.isEmpty
-          ? '例如 https://api.example.com/v1'
-          : '请求地址：${e.chatUrl}';
+          ? tr('例如 https://api.example.com/v1')
+          : trArgs('请求地址：{0}', [e.chatUrl]);
     }
 
     return SettingsScaffold(
-      title: _isNew ? '添加 ${preset.name}' : '编辑渠道',
+      title: _isNew ? trArgs('添加 {0}', [preset.name]) : tr('编辑渠道'),
       snackbar: _snackbar,
       overlays: [
         if (!_isNew)
           ConfirmDialog(
             show: _confirmDelete,
-            title: '删除渠道',
-            message: '「${_name.text}」及其模型路由会被删除，API Key 也会从系统钥匙串移除。',
-            confirmText: '删除',
+            title: tr('删除渠道'),
+            message: trArgs('「{0}」及其模型路由会被删除，API Key 也会从系统钥匙串移除。', [
+              _name.text,
+            ]),
+            confirmText: tr('删除'),
             destructive: true,
             onConfirm: _delete,
             onCancel: () => setState(() => _confirmDelete = false),
           ),
       ],
       bottomBar: PrimaryButton(
-        text: _isNew ? '保存并选择模型' : '保存',
+        text: _isNew ? tr('保存并选择模型') : tr('保存'),
         loading: _busy,
         onPressed: _save,
       ),
       children: [
         SettingsGroup(
-          title: '接入',
+          title: tr('接入'),
           children: [
             SettingsField(
               controller: _name,
-              label: '名称',
-              hint: '留空则使用「${preset.name}」',
+              label: tr('名称'),
+              hint: trArgs('留空则使用「{0}」', [preset.name]),
               autocorrect: true,
             ),
             if (_protocols.length > 1)
               MiuixOverlayDropdownPreference(
-                title: '接口协议',
+                title: tr('接口协议'),
                 items: [for (final p in _protocols) p.label],
                 selectedIndex: _protocols
                     .indexOf(_protocol)
@@ -280,7 +296,7 @@ class _ChannelEditPageState extends ConsumerState<ChannelEditPage> {
                 onSelectedIndexChange: (i) => _changeProtocol(_protocols[i]),
               )
             else
-              MiuixBasicComponent(title: '接口协议', summary: _protocol.label),
+              MiuixBasicComponent(title: tr('接口协议'), summary: _protocol.label),
             SettingsField(
               controller: _baseUrl,
               label: 'Base URL',
@@ -292,7 +308,7 @@ class _ChannelEditPageState extends ConsumerState<ChannelEditPage> {
               controller: _apiKey,
               label: 'API Key',
               obscure: _obscureKey,
-              hint: 'Key 保存在系统钥匙串中，不会写入数据库',
+              hint: tr('Key 保存在系统钥匙串中，不会写入数据库'),
               onChanged: (_) => setState(() => _testResult = null),
               trailing: Tap(
                 onTap: () => setState(() => _obscureKey = !_obscureKey),
@@ -311,8 +327,8 @@ class _ChannelEditPageState extends ConsumerState<ChannelEditPage> {
         SettingsGroup(
           children: [
             MiuixArrowPreference(
-              title: '测试连接',
-              summary: _busy ? '测试中…' : '检查地址和 Key 是否可用',
+              title: tr('测试连接'),
+              summary: _busy ? tr('测试中…') : tr('检查地址和 Key 是否可用'),
               enabled: !_busy,
               onClick: _test,
             ),
@@ -346,11 +362,13 @@ class _ChannelEditPageState extends ConsumerState<ChannelEditPage> {
         ),
         if (!_isNew && _channel != null) ...[
           SettingsGroup(
-            title: '模型',
+            title: tr('模型'),
             children: [
               MiuixArrowPreference(
-                title: '管理模型',
-                summary: '已启用 ${summary?.modelCount ?? 0} 个，可从云端重新拉取',
+                title: tr('管理模型'),
+                summary: trArgs('已启用 {0} 个，可从云端重新拉取', [
+                  summary?.modelCount ?? 0,
+                ]),
                 onClick: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => ModelPickerPage(channelId: _channel!.id),
@@ -358,8 +376,8 @@ class _ChannelEditPageState extends ConsumerState<ChannelEditPage> {
                 ),
               ),
               MiuixSwitchPreference(
-                title: '启用渠道',
-                summary: '停用后，轮询时跳过该渠道',
+                title: tr('启用渠道'),
+                summary: tr('停用后，轮询时跳过该渠道'),
                 value: summary?.channel.enabled ?? _channel!.enabled,
                 onChanged: (v) => ref
                     .read(channelRepositoryProvider)
@@ -370,7 +388,7 @@ class _ChannelEditPageState extends ConsumerState<ChannelEditPage> {
           SettingsGroup(
             children: [
               MiuixBasicComponent(
-                title: '删除渠道',
+                title: tr('删除渠道'),
                 titleColor: MiuixBasicComponentColors(
                   color: colors.error,
                   disabledColor: colors.disabledOnSurface,

@@ -26,6 +26,7 @@ import '../../ui/scroll_anchor.dart';
 import '../search/search_page.dart';
 import 'export.dart';
 import 'follow_up.dart';
+import '../../l10n/tr.dart';
 
 /// 聊天页。[embedded] 为 true 时嵌在桌面双栏右侧（不显示返回按钮）。
 class ChatPage extends ConsumerStatefulWidget {
@@ -223,9 +224,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
     final names = participants.map((p) => participantLabel(p, models, agents));
     final subtitle = participants.isEmpty
-        ? '未选择对话方式'
+        ? tr('未选择对话方式')
         : mode == ConversationMode.chain
-        ? '接力：${names.join(' → ')}'
+        ? trArgs('接力：{0}', [names.join(' → ')])
         : names.join('、');
     final generating = messages.any((m) => MsgStatus.isActive(m.status));
     final webSupported = participants.any((p) {
@@ -349,7 +350,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       ),
       topBar: TopBarTextFix(
         child: MiuixSmallTopAppBar(
-          title: conv?.title ?? '',
+          title: ChatService.displayTitle(conv?.title ?? ''),
           // miuix 的小标题只留固定 26 的边距，不避让两侧按钮，长标题会压在
           // 返回 / 分享 / 设置按钮上。按较宽一侧的按钮宽度留出对称边距，标题仍居中。
           titlePadding: _titleInset(
@@ -440,7 +441,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           ),
                         ),
                         child: Center(
-                          child: MiuixText('松开以添加图片', color: colors.primary),
+                          child: MiuixText(
+                            tr('松开以添加图片'),
+                            color: colors.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -485,13 +489,13 @@ class _EmptyChat extends StatelessWidget {
     if (!hasModels) {
       state = 'no-models';
       child = _Hint(
-        text: '还没有可用的模型',
-        action: '添加渠道',
+        text: tr('还没有可用的模型'),
+        action: tr('添加渠道'),
         onTap: () => Navigator.of(context).push(appRoute(const ChannelsPage())),
       );
     } else if (hasParticipants) {
       state = 'ready';
-      child = const _Hint(text: '有什么可以帮你？');
+      child = _Hint(text: tr('有什么可以帮你？'));
     } else {
       state = 'setup';
       final last = this.last;
@@ -523,14 +527,14 @@ class _EmptyChat extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     MiuixText(
-                      '这次想怎么对话？',
+                      tr('这次想怎么对话？'),
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 6),
                     MiuixText(
-                      '选好之后也可以随时点右上角修改',
+                      tr('选好之后也可以随时点右上角修改'),
                       fontSize: 13,
                       color: colors.onSurfaceVariantSummary,
                       textAlign: TextAlign.center,
@@ -553,7 +557,7 @@ class _EmptyChat extends StatelessWidget {
                       const SizedBox(height: 12),
                       MiuixCard(
                         child: MiuixArrowPreference(
-                          title: '沿用上次',
+                          title: tr('沿用上次'),
                           summary: last.mode == ConversationMode.single
                               ? lastLabel(last.participants).join('、')
                               : '${last.mode.label}：${lastLabel(last.participants).join(last.mode == ConversationMode.chain ? ' → ' : '、')}',

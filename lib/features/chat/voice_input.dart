@@ -10,6 +10,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../ui/app_icons.dart';
 import '../../ui/motion.dart';
+import '../../l10n/tr.dart';
 
 /// 系统语音识别（iOS / macOS：Speech 框架；Android：系统识别服务；
 /// Windows：系统语音识别）。全局只有一个实例。
@@ -177,7 +178,7 @@ class _HoldToTalkState extends State<HoldToTalk> {
     _starting = false;
     if (!ok) {
       _removeHud();
-      widget.onError('无法使用语音输入：请在系统设置里允许麦克风和语音识别');
+      widget.onError(tr('无法使用语音输入：请在系统设置里允许麦克风和语音识别'));
       return;
     }
     // 识别器准备期间已经松手：直接按松手处理。
@@ -212,7 +213,7 @@ class _HoldToTalkState extends State<HoldToTalk> {
     final text = await _voice.finish();
     _removeHud();
     if (text.isEmpty) {
-      widget.onError('没有听清，请再说一次');
+      widget.onError(tr('没有听清，请再说一次'));
     } else if (zone == VoiceZone.edit) {
       widget.onEdit(text);
     } else {
@@ -319,13 +320,13 @@ class _VoiceHud extends StatelessWidget {
                       children: [
                         _ZoneButton(
                           icon: AppIcons.close,
-                          label: '取消',
+                          label: tr('取消'),
                           active: z == VoiceZone.cancel,
                           activeColor: colors.error,
                         ),
                         _ZoneButton(
                           icon: AppIcons.edit,
-                          label: '转文字',
+                          label: tr('转文字'),
                           active: z == VoiceZone.edit,
                           activeColor: colors.primary,
                         ),
@@ -350,9 +351,9 @@ class _VoiceHud extends StatelessWidget {
                     ),
                     child: MiuixText(
                       switch (z) {
-                        VoiceZone.send => '松开 发送',
-                        VoiceZone.cancel => '松开 取消',
-                        VoiceZone.edit => '松开 转为文字',
+                        VoiceZone.send => tr('松开 发送'),
+                        VoiceZone.cancel => tr('松开 取消'),
+                        VoiceZone.edit => tr('松开 转为文字'),
                       },
                       fontSize: 15,
                       color: z == VoiceZone.send

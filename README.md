@@ -1,10 +1,13 @@
-# XC-Agent
+# XCAgent
+
+[English](#english) · 中文
 
 一个基于 Flutter 的多模型 AI 聊天客户端，界面使用 [flutter_miuix](https://pub.dev/packages/flutter_miuix)（HyperOS 风格）。
 自己填 API Key，支持 OpenAI / Anthropic 两种格式和各家中转站，可以让多个模型同时回答，或者按顺序接力分析同一个问题。
 
 - 平台：iOS / Android / macOS / Windows（手机单栏，平板和桌面自动切换为侧边栏 + 内容双栏）
 - 包名：`cn.oxoz.agent`
+- 界面语言：简体中文 / English（设置里切换，默认跟随系统）；首次打开有功能引导
 - 数据默认只保存在本机：对话在本地 SQLite，API Key 在系统钥匙串（Keychain / Keystore / DPAPI），不经过任何第三方服务器；可选 iCloud 同步（存进你自己的 iCloud 云盘）
 
 ## 功能
@@ -73,7 +76,7 @@
 - **文件夹**：长按对话「移到文件夹」，首页顶部按文件夹筛选
 - **应用锁**：Face ID / 指纹 / 设备密码解锁，可设离开多久后重新锁定；切到后台时遮住内容
 - **iCloud 同步**（iPhone / iPad / Mac）：对话、文件夹、渠道、模型、助手、提示词；同一条记录两边都改过时以后改的为准；API Key 可选通过 iCloud 钥匙串同步
-- **快捷入口**：主屏图标长按「新对话 / 搜索」；Siri / 快捷指令「问 XC-Agent」；系统分享面板把文字或链接发给 XC-Agent；主屏 / 锁屏小组件；`xcagent://ask?text=…` 链接；桌面端全局快捷键 ⌥ Space（Windows 为 Alt + Space）
+- **快捷入口**：主屏图标长按「新对话 / 搜索」；Siri / 快捷指令「问 XCAgent」；系统分享面板把文字或链接发给 XCAgent；主屏 / 锁屏小组件；`xcagent://ask?text=…` 链接；桌面端全局快捷键 ⌥ Space（Windows 为 Alt + Space）
 
 ## 开发
 
@@ -140,6 +143,19 @@ test/               单元测试、组件测试、冒烟测试
 
 复制自 flutter_miuix 1.3.0 的 `MiuixTextField`（Apache-2.0），只增加了 `autocorrect` / `enableSuggestions` 参数。
 原组件没有暴露这两个参数，iOS 会把 URL、API Key、模型名等自动纠错（例如把 `gpt` 改成 `got`）。
+
+## English
+
+XCAgent is a multi-model AI chat client built with Flutter, for iOS, Android, macOS and Windows.
+Bring your own API keys (OpenAI or Anthropic format, official APIs or relays) and chat with several models at once.
+
+- **Five chat modes**: single model, multi-agent (ask several models, adopt one answer), relay, judge (a judge model scores the answers and writes a combined one) and debate
+- **Channels**: one model can rotate across several channels with automatic failover
+- **Native web search**, **tool calling** (read web pages, calculator, current time, remote MCP servers over Streamable HTTP), **image generation**, PDFs and code files as attachments
+- **Hold to talk** voice input, **code preview** for HTML / SVG / Mermaid, **branches**, **global search**, **prompt library** (type `/`), export to Markdown or a long image
+- **Folders**, **app lock** (Face ID / fingerprint), **iCloud sync** across iPhone, iPad and Mac, Siri / Shortcuts, share extension, widgets and a desktop global shortcut
+- Your data stays on your device: chats in a local SQLite database, API keys in the system keychain
+- The interface is available in Simplified Chinese and English (Settings → Language)
 
 ## 许可证
 

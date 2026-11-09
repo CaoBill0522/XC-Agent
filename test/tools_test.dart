@@ -324,7 +324,7 @@ void main() {
 
   test('当前时间描述包含星期和时区', () {
     final s = ToolService.describeNow(DateTime(2026, 11, 9, 8, 5, 3));
-    expect(s, startsWith('2026-11-09 08:05:03 星期一'));
+    expect(s, startsWith('2026-11-09 08:05:03 Monday'));
     expect(s, contains('UTC'));
   });
 

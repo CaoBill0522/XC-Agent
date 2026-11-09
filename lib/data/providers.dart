@@ -17,6 +17,7 @@ import 'repositories/channel_repository.dart';
 import 'sync/sync_service.dart';
 import 'tool_service.dart';
 import 'secure/key_store.dart';
+import '../l10n/tr.dart';
 
 export 'ids.dart';
 
@@ -162,7 +163,7 @@ String participantLabel(
       : agents.where((a) => a.id == p.agentId).firstOrNull;
   final model = models.where((m) => m.model.id == p.modelId).firstOrNull;
   if (agent != null) return agent.name;
-  return model?.model.displayName ?? '未知模型';
+  return model?.model.displayName ?? tr('未知模型');
 }
 
 // ──────────────── 新建会话

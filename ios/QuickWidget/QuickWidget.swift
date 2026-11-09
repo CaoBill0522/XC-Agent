@@ -1,7 +1,10 @@
 import SwiftUI
 import WidgetKit
 
-/// 主屏 / 锁屏小组件：点一下打开 XC-Agent 新建对话。
+/// 系统首选语言是中文时显示中文，否则英文。
+private let zh = Locale.preferredLanguages.first?.hasPrefix("zh") ?? false
+
+/// 主屏 / 锁屏小组件：点一下打开 XCAgent 新建对话。
 struct QuickEntry: TimelineEntry {
   let date: Date
 }
@@ -35,7 +38,7 @@ struct QuickWidgetView: View {
     case .accessoryRectangular:
       HStack(spacing: 6) {
         Image(systemName: "bubble.left.and.text.bubble.right.fill")
-        Text("问 XC-Agent").font(.headline)
+        Text(zh ? "问 XCAgent" : "Ask XCAgent").font(.headline)
       }
     default:
       VStack(alignment: .leading, spacing: 8) {
@@ -43,8 +46,8 @@ struct QuickWidgetView: View {
           .font(.system(size: 30, weight: .semibold))
           .foregroundStyle(.tint)
         Spacer()
-        Text("XC-Agent").font(.headline)
-        Text("新建对话").font(.subheadline).foregroundStyle(.secondary)
+        Text("XCAgent").font(.headline)
+        Text(zh ? "新建对话" : "New chat").font(.subheadline).foregroundStyle(.secondary)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
@@ -67,8 +70,8 @@ struct QuickWidget: Widget {
     StaticConfiguration(kind: "QuickWidget", provider: QuickProvider()) { _ in
       QuickWidgetView()
     }
-    .configurationDisplayName("快速提问")
-    .description("一键打开 XC-Agent 新建对话。")
+    .configurationDisplayName(zh ? "快速提问" : "Quick ask")
+    .description(zh ? "一键打开 XCAgent 新建对话。" : "Open XCAgent with a new chat.")
     .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular])
   }
 }

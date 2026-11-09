@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import '../../l10n/tr.dart';
+
 /// 计算器工具用的四则运算解析器：+ - * / % ^、括号、常用函数和常量。
 /// 只做数学运算，不执行任何代码。
 double evaluateExpression(String input) => _Parser(input).parse();
@@ -18,9 +20,11 @@ class _Parser {
   int _i = 0;
 
   double parse() {
-    if (_s.isEmpty) throw const FormatException('表达式为空');
+    if (_s.isEmpty) throw FormatException(tr('表达式为空'));
     final v = _expr();
-    if (_i < _s.length) throw FormatException('无法识别「${_s.substring(_i)}」');
+    if (_i < _s.length) {
+      throw FormatException(trArgs('无法识别「{0}」', [_s.substring(_i)]));
+    }
     return v;
   }
 
@@ -77,7 +81,7 @@ class _Parser {
   double _factorial(double v) {
     while (_eat('!')) {
       if (v < 0 || v != v.roundToDouble() || v > 170) {
-        throw const FormatException('阶乘只支持 0~170 的整数');
+        throw FormatException(tr('阶乘只支持 0~170 的整数'));
       }
       var r = 1.0;
       for (var k = 2; k <= v; k++) {
@@ -94,7 +98,7 @@ class _Parser {
   double _atom() {
     if (_eat('(')) {
       final v = _expr();
-      if (!_eat(')')) throw const FormatException('括号不匹配');
+      if (!_eat(')')) throw FormatException(tr('括号不匹配'));
       return v;
     }
     if (_number.matchAsPrefix(_s, _i) case final m?) {
@@ -110,22 +114,22 @@ class _Parser {
         case 'e':
           return math.e;
       }
-      if (!_eat('(')) throw FormatException('未知名称「$name」');
+      if (!_eat('(')) throw FormatException(trArgs('未知名称「{0}」', [name]));
       final args = <double>[_expr()];
       while (_eat(',')) {
         args.add(_expr());
       }
-      if (!_eat(')')) throw const FormatException('括号不匹配');
+      if (!_eat(')')) throw FormatException(tr('括号不匹配'));
       return _call(name, args);
     }
     throw FormatException(
-      _i < _s.length ? '无法识别「${_s.substring(_i)}」' : '表达式不完整',
+      _i < _s.length ? trArgs('无法识别「{0}」', [_s.substring(_i)]) : tr('表达式不完整'),
     );
   }
 
   static double _call(String name, List<double> a) {
     double one() {
-      if (a.length != 1) throw FormatException('$name 需要 1 个参数');
+      if (a.length != 1) throw FormatException(trArgs('{0} 需要 1 个参数', [name]));
       return a.first;
     }
 
@@ -148,14 +152,14 @@ class _Parser {
       'pow' when a.length == 2 => math.pow(a[0], a[1]).toDouble(),
       'min' when a.isNotEmpty => a.reduce(math.min),
       'max' when a.isNotEmpty => a.reduce(math.max),
-      _ => throw FormatException('不支持的函数「$name」'),
+      _ => throw FormatException(trArgs('不支持的函数「{0}」', [name])),
     };
   }
 }
 
 /// 计算结果格式化：整数不带小数点，其余最多 12 位有效数字。
 String formatNumber(double v) {
-  if (v.isNaN) return 'NaN（无意义的结果）';
+  if (v.isNaN) return tr('NaN（无意义的结果）');
   if (v.isInfinite) return v > 0 ? '∞' : '-∞';
   if (v == v.roundToDouble() && v.abs() < 1e15) return v.toInt().toString();
   final s = v.toStringAsPrecision(12);

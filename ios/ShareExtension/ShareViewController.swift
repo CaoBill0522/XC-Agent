@@ -1,7 +1,7 @@
 import UIKit
 import UniformTypeIdentifiers
 
-/// 系统分享面板里的「XC-Agent」：把分享的文字 / 链接带进 App，新建一个对话并填进输入框。
+/// 系统分享面板里的「XCAgent」：把分享的文字 / 链接带进 App，新建一个对话并填进输入框。
 /// 没有界面，取到内容后直接打开主 App。
 final class ShareViewController: UIViewController {
   private var handled = false

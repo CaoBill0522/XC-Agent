@@ -11,6 +11,7 @@ import '../../ui/dialogs.dart';
 import '../../ui/layout.dart';
 import '../../ui/motion.dart';
 import '../../ui/settings_widgets.dart';
+import '../../l10n/tr.dart';
 
 /// 应用锁设置：开启后打开 App（或离开超过 [delay] 后回来）需要 Face ID /
 /// 指纹 / 系统密码解锁；切到后台时遮住画面，多任务界面里看不到聊天内容。
@@ -150,7 +151,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
       return;
     }
     _authing = true;
-    final ok = await DeviceAuth.authenticate('解锁 XC-Agent');
+    final ok = await DeviceAuth.authenticate(tr('解锁 XCAgent'));
     _authing = false;
     if (ok && mounted) setState(() => _locked = false);
   }
@@ -203,7 +204,7 @@ class _LockScreen extends StatelessWidget {
             MiuixIcon(vector: AppIcons.lock, size: 48, tint: colors.primary),
             const SizedBox(height: 16),
             MiuixText(
-              'XC-Agent',
+              'XCAgent',
               fontSize: 20,
               fontWeight: FontWeight.w600,
               color: colors.onSurface,
@@ -214,7 +215,7 @@ class _LockScreen extends StatelessWidget {
               duration: Motion.fast,
               child: SizedBox(
                 width: 200,
-                child: PrimaryButton(text: '解锁', onPressed: onUnlock),
+                child: PrimaryButton(text: tr('解锁'), onPressed: onUnlock),
               ),
             ),
           ],
@@ -240,8 +241,8 @@ class AppLockPreference extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         MiuixSwitchPreference(
-          title: '应用锁',
-          summary: '打开时需要 Face ID、指纹或设备密码',
+          title: tr('应用锁'),
+          summary: tr('打开时需要 Face ID、指纹或设备密码'),
           startAction: Padding(
             padding: const EdgeInsets.only(right: 14),
             child: MiuixIcon(
@@ -260,15 +261,15 @@ class AppLockPreference extends ConsumerWidget {
               if (context.mounted) {
                 await showConfirm(
                   context,
-                  title: '无法开启应用锁',
-                  message: '这台设备没有设置锁屏密码或生物识别，请先在系统设置里开启。',
-                  confirmText: '好',
+                  title: tr('无法开启应用锁'),
+                  message: tr('这台设备没有设置锁屏密码或生物识别，请先在系统设置里开启。'),
+                  confirmText: tr('好'),
                 );
               }
               return;
             }
             // 先验证一次，确认能解锁再开启。
-            if (await DeviceAuth.authenticate('开启应用锁')) n.setEnabled(true);
+            if (await DeviceAuth.authenticate(tr('开启应用锁'))) n.setEnabled(true);
           },
         ),
         AnimatedSize(
@@ -276,9 +277,9 @@ class AppLockPreference extends ConsumerWidget {
           curve: Motion.curve,
           child: s.enabled
               ? MiuixOverlayDropdownPreference(
-                  title: '自动锁定',
-                  summary: '离开 App 多久后需要重新解锁',
-                  items: [for (final d in AppLockSettings.delays) d.$2],
+                  title: tr('自动锁定'),
+                  summary: tr('离开 App 多久后需要重新解锁'),
+                  items: [for (final d in AppLockSettings.delays) tr(d.$2)],
                   selectedIndex: delayIndex < 0 ? 0 : delayIndex,
                   onSelectedIndexChange: (i) =>
                       n.setDelay(AppLockSettings.delays[i].$1),

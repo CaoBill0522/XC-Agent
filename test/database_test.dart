@@ -121,4 +121,27 @@ void main() {
     await d.close();
     await dir.delete(recursive: true);
   });
+
+  test('迁移可重复执行：版本号落后但列和表已经存在时不报错（开发期旧数据库）', () async {
+    final dir = await Directory.systemTemp.createTemp('migrate');
+    final file = File('${dir.path}/agent.sqlite');
+    var first = AppDatabase(NativeDatabase(file));
+    await first.into(first.channels).insert(
+      ChannelsCompanion.insert(
+        id: 'c',
+        name: 'n',
+        protocol: 'openai_chat',
+        baseUrl: 'https://x',
+        createdAt: DateTime(2026),
+      ),
+    );
+    await first.customStatement('PRAGMA user_version = 3');
+    await first.close();
+
+    final again = AppDatabase(NativeDatabase(file));
+    expect(await again.select(again.channels).get(), hasLength(1));
+    expect(await again.select(again.prompts).get(), hasLength(5));
+    await again.close();
+    await dir.delete(recursive: true);
+  });
 }

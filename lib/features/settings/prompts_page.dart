@@ -9,6 +9,7 @@ import '../../ui/app_icons.dart';
 import '../../ui/dialogs.dart';
 import '../../ui/settings_widgets.dart';
 import '../../ui/vendor/app_text_field.dart';
+import '../../l10n/tr.dart';
 
 final promptsProvider = StreamProvider<List<Prompt>>(
   (ref) => ref.watch(databaseProvider).watchPrompts(),
@@ -27,7 +28,7 @@ class PromptsPage extends ConsumerWidget {
     final colors = MiuixTheme.of(context).colors;
     final prompts = ref.watch(promptsProvider).value ?? const [];
     return SettingsScaffold(
-      title: '提示词',
+      title: tr('提示词'),
       actions: [
         AppIconButton(icon: AppIcons.add, onPressed: () => _edit(context)),
       ],
@@ -38,18 +39,21 @@ class PromptsPage extends ConsumerWidget {
             child: Column(
               children: [
                 MiuixText(
-                  '常用的提问方式存成提示词，\n聊天时在输入框里打 / 就能调出',
+                  tr('常用的提问方式存成提示词，\n聊天时在输入框里打 / 就能调出'),
                   textAlign: TextAlign.center,
                   color: colors.onSurfaceVariantSummary,
                 ),
                 const SizedBox(height: 24),
-                PrimaryButton(text: '新建提示词', onPressed: () => _edit(context)),
+                PrimaryButton(
+                  text: tr('新建提示词'),
+                  onPressed: () => _edit(context),
+                ),
               ],
             ),
           )
         else
           SettingsGroup(
-            title: '在输入框里打 / 调出',
+            title: tr('在输入框里打 / 调出'),
             children: [
               for (final p in prompts)
                 MiuixArrowPreference(
@@ -89,7 +93,7 @@ class _PromptEditPageState extends ConsumerState<PromptEditPage> {
   Future<void> _save() async {
     final title = _title.text.trim();
     if (title.isEmpty || _content.text.trim().isEmpty) {
-      _snackbar.showSnackbar('名称和内容都要填写');
+      _snackbar.showSnackbar(tr('名称和内容都要填写'));
       return;
     }
     final db = ref.read(databaseProvider);
@@ -113,9 +117,9 @@ class _PromptEditPageState extends ConsumerState<PromptEditPage> {
     if (p == null) return;
     final ok = await showConfirm(
       context,
-      title: '删除提示词',
-      message: '「${p.title}」将被删除。',
-      confirmText: '删除',
+      title: tr('删除提示词'),
+      message: trArgs('「{0}」将被删除。', [p.title]),
+      confirmText: tr('删除'),
       destructive: true,
     );
     if (!ok || !mounted) return;
@@ -127,27 +131,31 @@ class _PromptEditPageState extends ConsumerState<PromptEditPage> {
   @override
   Widget build(BuildContext context) {
     return SettingsScaffold(
-      title: widget.prompt == null ? '新建提示词' : '编辑提示词',
+      title: widget.prompt == null ? tr('新建提示词') : tr('编辑提示词'),
       snackbar: _snackbar,
       actions: [
         if (widget.prompt != null)
           AppIconButton(icon: AppIcons.delete, onPressed: _delete),
       ],
-      bottomBar: PrimaryButton(text: '保存', onPressed: _save),
+      bottomBar: PrimaryButton(text: tr('保存'), onPressed: _save),
       children: [
         SettingsGroup(
           children: [
-            SettingsField(controller: _title, label: '名称', autocorrect: true),
+            SettingsField(
+              controller: _title,
+              label: tr('名称'),
+              autocorrect: true,
+            ),
           ],
         ),
         SettingsGroup(
-          title: '内容（选用后填进输入框，可以接着补充）',
+          title: tr('内容（选用后填进输入框，可以接着补充）'),
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
               child: AppTextField(
                 controller: _content,
-                label: '例如：把下面的内容翻译成英文：',
+                label: tr('例如：把下面的内容翻译成英文：'),
                 useLabelAsPlaceholder: true,
                 minLines: 4,
                 maxLines: 14,

@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/chat_service.dart';
 import '../../data/db/app_database.dart';
 import '../../data/providers.dart';
 import '../../ui/animated_keyed_list.dart';
 import '../../ui/app_icons.dart';
 import '../../ui/dialogs.dart';
 import '../../ui/motion.dart';
+import '../../l10n/tr.dart';
 
 /// 会话列表，手机首页和桌面侧边栏共用。
 class ConversationList extends ConsumerWidget {
@@ -33,7 +35,7 @@ class ConversationList extends ConsumerWidget {
 
     return conversations.when(
       loading: () => const SizedBox.expand(),
-      error: (e, _) => Center(child: MiuixText('加载失败：$e')),
+      error: (e, _) => Center(child: MiuixText(trArgs('加载失败：{0}', [e]))),
       data: (all) {
         final items = filter == null
             ? all
@@ -77,7 +79,7 @@ class ConversationList extends ConsumerWidget {
                         ),
                         const SizedBox(height: 12),
                         MiuixText(
-                          filter == null ? '还没有对话' : '这个文件夹还没有对话',
+                          filter == null ? tr('还没有对话') : tr('这个文件夹还没有对话'),
                           color: colors.onSurfaceVariantSummary,
                           fontSize: 14,
                         ),
@@ -110,34 +112,36 @@ class _ConversationTile extends ConsumerWidget {
     final c = conversation;
     return showActionSheet(
       context,
-      title: c.title,
+      title: ChatService.displayTitle(c.title),
       actions: [
-        SheetAction('重命名', () async {
+        SheetAction(tr('重命名'), () async {
           final t = await showTextInput(
             context,
-            title: '重命名',
-            initial: c.title,
+            title: tr('重命名'),
+            initial: ChatService.displayTitle(c.title),
           );
           if (t != null) await service.rename(c.id, t);
         }, icon: AppIcons.rename),
         SheetAction(
-          c.folderId == null ? '移到文件夹' : '移到其他文件夹',
+          c.folderId == null ? tr('移到文件夹') : tr('移到其他文件夹'),
           () => _moveToFolder(context, ref, c),
           icon: AppIcons.moveFile,
         ),
         SheetAction(
-          c.pinned ? '取消置顶' : '置顶',
+          c.pinned ? tr('取消置顶') : tr('置顶'),
           () => service.setPinned(c.id, !c.pinned),
           icon: c.pinned ? AppIcons.unpin : AppIcons.pin,
         ),
         SheetAction(
-          '删除',
+          tr('删除'),
           () async {
             final ok = await showConfirm(
               context,
-              title: '删除对话',
-              message: '「${c.title}」及其中的图片将被永久删除。',
-              confirmText: '删除',
+              title: tr('删除对话'),
+              message: trArgs('「{0}」及其中的图片将被永久删除。', [
+                ChatService.displayTitle(c.title),
+              ]),
+              confirmText: tr('删除'),
               destructive: true,
             );
             if (ok) {
@@ -173,7 +177,7 @@ class _ConversationTile extends ConsumerWidget {
             shape: const MiuixSquircleBorder(cornerRadius: 14),
           ),
           child: MiuixBasicComponent(
-            title: conversation.title,
+            title: ChatService.displayTitle(conversation.title),
             summary: formatRelativeTime(conversation.updatedAt),
             insideMargin: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -204,7 +208,7 @@ Future<void> _moveToFolder(
   final folders = ref.read(foldersProvider).value ?? const <Folder>[];
   await showActionSheet(
     context,
-    title: '移到文件夹',
+    title: tr('移到文件夹'),
     actions: [
       for (final f in folders)
         if (f.id != c.folderId)
@@ -215,12 +219,12 @@ Future<void> _moveToFolder(
           ),
       if (c.folderId != null)
         SheetAction(
-          '移出文件夹',
+          tr('移出文件夹'),
           () => service.moveToFolder(c.id, null),
           icon: AppIcons.messages,
         ),
-      SheetAction('新建文件夹…', () async {
-        final name = await showTextInput(context, title: '新建文件夹');
+      SheetAction(tr('新建文件夹…'), () async {
+        final name = await showTextInput(context, title: tr('新建文件夹'));
         if (name == null || name.trim().isEmpty) return;
         final id = await service.createFolder(name);
         await service.moveToFolder(c.id, id);
@@ -242,10 +246,10 @@ class FolderBar extends ConsumerWidget {
       context,
       title: f.name,
       actions: [
-        SheetAction('重命名', () async {
+        SheetAction(tr('重命名'), () async {
           final t = await showTextInput(
             context,
-            title: '重命名文件夹',
+            title: tr('重命名文件夹'),
             initial: f.name,
           );
           if (t != null && t.trim().isNotEmpty) {
@@ -253,13 +257,13 @@ class FolderBar extends ConsumerWidget {
           }
         }, icon: AppIcons.rename),
         SheetAction(
-          '删除文件夹',
+          tr('删除文件夹'),
           () async {
             final ok = await showConfirm(
               context,
-              title: '删除文件夹',
-              message: '「${f.name}」里的对话会移回「全部」，不会被删除。',
-              confirmText: '删除',
+              title: tr('删除文件夹'),
+              message: trArgs('「{0}」里的对话会移回「全部」，不会被删除。', [f.name]),
+              confirmText: tr('删除'),
               destructive: true,
             );
             if (!ok) return;
@@ -286,7 +290,7 @@ class FolderBar extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
         children: [
           _FolderChip(
-            label: '全部',
+            label: tr('全部'),
             selected: selected == null,
             onTap: () => select(null),
           ),
@@ -349,11 +353,11 @@ class _FolderChip extends StatelessWidget {
 String formatRelativeTime(DateTime t) {
   final now = DateTime.now();
   final diff = now.difference(t);
-  if (diff.inMinutes < 1) return '刚刚';
-  if (diff.inHours < 1) return '${diff.inMinutes} 分钟前';
+  if (diff.inMinutes < 1) return tr('刚刚');
+  if (diff.inHours < 1) return trArgs('{0} 分钟前', [diff.inMinutes]);
   if (now.year == t.year && now.month == t.month && now.day == t.day) {
     return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
   }
-  if (now.year == t.year) return '${t.month}月${t.day}日';
+  if (now.year == t.year) return trArgs('{0}月{1}日', [t.month, t.day]);
   return '${t.year}/${t.month}/${t.day}';
 }

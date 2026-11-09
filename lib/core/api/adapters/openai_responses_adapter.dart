@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../chat/chat_types.dart';
 import '../sse.dart';
 import 'adapter.dart';
+import '../../../l10n/tr.dart';
 
 /// OpenAI Responses API（OpenAI、xAI）。
 class OpenAIResponsesAdapter extends ProtocolAdapter {
@@ -122,7 +123,7 @@ class OpenAIResponsesAdapter extends ProtocolAdapter {
         final r = json['response'];
         final err = (r is Map) ? r['error'] ?? r['incomplete_details'] : null;
         if (type == 'response.failed' || err != null) {
-          throwStreamError(err ?? '响应未完成');
+          throwStreamError(err ?? tr('响应未完成'));
         }
       case 'error':
         throwStreamError(json['error'] ?? json['message'] ?? json);

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'db/app_database.dart';
 import 'secure/key_store.dart';
+import '../l10n/tr.dart';
 
 /// 配置导入导出：渠道、模型、路由、助手（不含聊天记录）。
 class ConfigTransfer {
@@ -46,9 +47,9 @@ class ConfigTransfer {
     try {
       json = jsonDecode(text) as Map<String, dynamic>;
     } catch (_) {
-      throw const FormatException('剪贴板内容不是有效的配置 JSON');
+      throw FormatException(tr('剪贴板内容不是有效的配置 JSON'));
     }
-    if (json['format'] != format) throw const FormatException('不是本应用导出的配置');
+    if (json['format'] != format) throw FormatException(tr('不是本应用导出的配置'));
 
     List<Map<String, dynamic>> list(String k) => [
       for (final e in (json[k] as List? ?? const [])) e as Map<String, dynamic>,
@@ -84,7 +85,12 @@ class ConfigTransfer {
         keys++;
       }
     }
-    return '已导入 ${channels.length} 个渠道（含 $keys 个 Key）、${models.length} 个模型、${agents.length} 个助手';
+    return trArgs('已导入 {0} 个渠道（含 {1} 个 Key）、{2} 个模型、{3} 个助手', [
+      channels.length,
+      keys,
+      models.length,
+      agents.length,
+    ]);
   }
 
   Future<void> clearChats() => _db.transaction(() async {

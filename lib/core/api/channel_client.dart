@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'api_error.dart';
 import 'endpoint.dart';
 import 'protocol.dart';
+import '../../l10n/tr.dart';
 
 /// 云端模型列表中的一项。
 class RemoteModel {
@@ -90,12 +91,12 @@ class ChannelClient {
           options: opts,
         );
         final infos = (res.data as Map?)?['balance_infos'] as List?;
-        if (infos == null || infos.isEmpty) throw ApiException('返回格式不认识');
+        if (infos == null || infos.isEmpty) throw ApiException(tr('返回格式不认识'));
         return infos
             .whereType<Map>()
             .map((i) {
               final sym = i['currency'] == 'CNY' ? '¥' : usd;
-              return '余额 $sym${i['total_balance']}';
+              return trArgs('余额 {0}{1}', [sym, i['total_balance']]);
             })
             .join('，');
       }
@@ -106,7 +107,7 @@ class ChannelClient {
         options: opts,
       );
       final limit = ((sub.data as Map?)?['hard_limit_usd'] as num?)?.toDouble();
-      if (limit == null) throw ApiException('该渠道不支持查询余额');
+      if (limit == null) throw ApiException(tr('该渠道不支持查询余额'));
       final now = DateTime.now();
       String d(DateTime t) =>
           '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
@@ -126,11 +127,15 @@ class ChannelClient {
           100;
       String money(double v) => '$usd${v.toStringAsFixed(2)}';
       // 不限额度的令牌通常返回一个极大的额度。
-      if (limit >= 1e8) return '已用 ${money(used)}（额度不限）';
-      return '余额 ${money(limit - used)}（额度 ${money(limit)}，已用 ${money(used)}）';
+      if (limit >= 1e8) return trArgs('已用 {0}（额度不限）', [money(used)]);
+      return trArgs('余额 {0}（额度 {1}，已用 {2}）', [
+        money(limit - used),
+        money(limit),
+        money(used),
+      ]);
     } on DioException catch (e) {
       final api = ApiException.fromDio(e);
-      if (api.isNotFound) throw ApiException('该渠道不支持查询余额');
+      if (api.isNotFound) throw ApiException(tr('该渠道不支持查询余额'));
       throw api;
     }
   }
@@ -182,13 +187,13 @@ class ChannelClient {
         sw.stop();
         return ConnectionTestResult(
           latency: sw.elapsed,
-          message: '连接正常（模型拒绝了过短的测试请求）',
+          message: tr('连接正常（模型拒绝了过短的测试请求）'),
         );
       }
       throw err;
     }
     sw.stop();
-    return ConnectionTestResult(latency: sw.elapsed, message: '连接正常');
+    return ConnectionTestResult(latency: sw.elapsed, message: tr('连接正常'));
   }
 }
 
@@ -211,7 +216,7 @@ ParsedModelList parseModelList(Object? body) {
       json = jsonDecode(body);
     } catch (_) {
       throw ApiException(
-        '模型列表格式无法识别',
+        tr('模型列表格式无法识别'),
         detail: body.length > 200 ? body.substring(0, 200) : body,
       );
     }
@@ -228,7 +233,7 @@ ParsedModelList parseModelList(Object? body) {
     lastId = json['last_id'] as String?;
   }
   if (items == null) {
-    throw ApiException('模型列表格式无法识别');
+    throw ApiException(tr('模型列表格式无法识别'));
   }
 
   final models = <RemoteModel>[];

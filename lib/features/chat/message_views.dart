@@ -22,6 +22,7 @@ import '../../ui/links.dart';
 import '../../ui/scroll_anchor.dart';
 import 'follow_up.dart';
 import 'input_bar.dart';
+import '../../l10n/tr.dart';
 
 /// 消息列表里的一项：单条消息，或多 Agent 同组回答。
 sealed class ChatItem {
@@ -84,14 +85,14 @@ class UserBubble extends ConsumerWidget {
       context,
       actions: [
         SheetAction(
-          '复制',
+          tr('复制'),
           () => Clipboard.setData(ClipboardData(text: parts.text)),
           icon: AppIcons.copy,
         ),
-        SheetAction('编辑并重新发送', () async {
+        SheetAction(tr('编辑并重新发送'), () async {
           final text = await showTextInput(
             context,
-            title: '编辑消息',
+            title: tr('编辑消息'),
             initial: parts.text,
             multiline: true,
           );
@@ -101,12 +102,12 @@ class UserBubble extends ConsumerWidget {
         }, icon: AppIcons.edit),
         if (ChatActions.maybeOf(context) case final a?)
           SheetAction(
-            '从这里分支',
+            tr('从这里分支'),
             () => a.branchFrom(message.id),
             icon: AppIcons.branch,
           ),
         SheetAction(
-          '删除',
+          tr('删除'),
           () => ref.read(chatServiceProvider).deleteMessage(message.id),
           icon: AppIcons.delete,
           destructive: true,
@@ -220,7 +221,7 @@ class _ContextSummaryChipState extends State<_ContextSummaryChip> {
             mainAxisSize: MainAxisSize.min,
             children: [
               MiuixText(
-                _open ? '前文总结' : '前文总结 · 点击展开',
+                _open ? tr('前文总结') : tr('前文总结 · 点击展开'),
                 fontSize: 12,
                 color: colors.primary,
               ),
@@ -266,7 +267,7 @@ class AssistantMessage extends ConsumerWidget {
     final models = ref.watch(modelsProvider).value ?? const [];
     final agents = ref.watch(agentsProvider).value ?? const [];
     final label = message.modelId == null
-        ? '助手'
+        ? tr('助手')
         : participantLabel(
             Participant(modelId: message.modelId!, agentId: message.agentId),
             models,
@@ -314,7 +315,7 @@ class AssistantMessage extends ConsumerWidget {
                   const SizedBox(width: 4),
                   Flexible(
                     child: MiuixText(
-                      n.text,
+                      tr(n.text),
                       fontSize: 12,
                       color: colors.onSurfaceVariantSummary,
                     ),
@@ -372,7 +373,9 @@ class AssistantMessage extends ConsumerWidget {
                   ),
                   const SizedBox(width: 8),
                   MiuixText(
-                    message.status == MsgStatus.pending ? '正在连接…' : '生成中…',
+                    message.status == MsgStatus.pending
+                        ? tr('正在连接…')
+                        : tr('生成中…'),
                     fontSize: 13,
                     color: colors.onSurfaceVariantSummary,
                   ),
@@ -381,12 +384,12 @@ class AssistantMessage extends ConsumerWidget {
             ),
           if (parts.citations.isNotEmpty) CitationList(parts.citations),
           if (message.status == MsgStatus.error)
-            ErrorCard(message: message.error ?? '未知错误'),
+            ErrorCard(message: message.error ?? tr('未知错误')),
           if (message.status == MsgStatus.stopped)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: MiuixText(
-                '已停止',
+                tr('已停止'),
                 fontSize: 12,
                 color: colors.onSurfaceVariantSummary,
               ),
@@ -521,7 +524,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
               child: Row(
                 children: [
                   MiuixText(
-                    widget.streaming ? '思考中…' : '思考过程',
+                    widget.streaming ? tr('思考中…') : tr('思考过程'),
                     fontSize: 13,
                     color: colors.onSurfaceVariantSummary,
                   ),
@@ -636,8 +639,8 @@ class _ToolCallBlockState extends State<ToolCallBlock> {
                   Expanded(
                     child: MiuixText(
                       sum.isEmpty
-                          ? (c.label ?? c.name)
-                          : '${c.label ?? c.name} · $sum',
+                          ? tr(c.label ?? c.name)
+                          : '${tr(c.label ?? c.name)} · $sum',
                       fontSize: 13,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -667,15 +670,18 @@ class _ToolCallBlockState extends State<ToolCallBlock> {
                 children: [
                   if (c.arguments.trim().isNotEmpty &&
                       c.arguments.trim() != '{}') ...[
-                    MiuixText('参数', fontSize: 12, color: colors.primary),
+                    MiuixText(tr('参数'), fontSize: 12, color: colors.primary),
                     SelectableText(c.arguments, style: mono),
                     const SizedBox(height: 6),
                   ],
-                  MiuixText('结果', fontSize: 12, color: colors.primary),
+                  MiuixText(tr('结果'), fontSize: 12, color: colors.primary),
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxHeight: 280),
                     child: SingleChildScrollView(
-                      child: SelectableText(c.result ?? '执行中…', style: mono),
+                      child: SelectableText(
+                        c.result ?? tr('执行中…'),
+                        style: mono,
+                      ),
                     ),
                   ),
                 ],
@@ -709,7 +715,7 @@ class CitationList extends StatelessWidget {
   Future<void> _showAll(BuildContext context) async {
     final picked = await showAppSheet<CitationPart>(
       context,
-      title: '来源（${citations.length}）',
+      title: trArgs('来源（{0}）', [citations.length]),
       builder: (ctx, close) {
         final colors = MiuixTheme.of(ctx).colors;
         return ConstrainedBox(
@@ -963,7 +969,7 @@ class _AnswerGroupViewState extends ConsumerState<AnswerGroupView> {
             child: adopted
                 ? Padding(
                     padding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
-                    child: _Badge('已采纳', color: colors.primary),
+                    child: _Badge(tr('已采纳'), color: colors.primary),
                   )
                 : m.status == MsgStatus.done
                 ? Tap(
@@ -975,7 +981,7 @@ class _AnswerGroupViewState extends ConsumerState<AnswerGroupView> {
                         bottom: 4,
                       ),
                       child: _Badge(
-                        '采纳',
+                        tr('采纳'),
                         color: colors.onSurfaceVariantSummary,
                         outlined: true,
                       ),
@@ -1018,7 +1024,7 @@ class _AnswerGroupViewState extends ConsumerState<AnswerGroupView> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: MiuixText(
-                        '裁判 · ${label(judge)}',
+                        trArgs('裁判 · {0}', [label(judge)]),
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         maxLines: 1,
@@ -1028,9 +1034,9 @@ class _AnswerGroupViewState extends ConsumerState<AnswerGroupView> {
                     PopSwitch(
                       switchKey: (judge.adopted, waiting),
                       child: judge.adopted
-                          ? _Badge('综合答案已采纳', color: colors.primary)
+                          ? _Badge(tr('综合答案已采纳'), color: colors.primary)
                           : MiuixText(
-                              waiting ? '等待各回答完成' : '',
+                              waiting ? tr('等待各回答完成') : '',
                               fontSize: 12,
                               color: colors.onSurfaceVariantSummary,
                             ),
@@ -1194,7 +1200,7 @@ class _AnswerGroupViewState extends ConsumerState<AnswerGroupView> {
           Padding(
             padding: const EdgeInsets.only(top: 4, left: 4),
             child: MiuixText(
-              '左右滑动切换 · 双击采纳',
+              tr('左右滑动切换 · 双击采纳'),
               fontSize: 11,
               color: colors.onSurfaceVariantSummary.withValues(alpha: 0.7),
             ),
@@ -1453,7 +1459,7 @@ class ChainGroupView extends ConsumerWidget {
     final speakers = <String>[];
     final rounds = <String, int>{};
     String stepLabel(Message m) {
-      if (m.kind == MsgKind.summary) return '总结 · ${label(m)}';
+      if (m.kind == MsgKind.summary) return trArgs('总结 · {0}', [label(m)]);
       if (m.kind != MsgKind.debate) return label(m);
       final key = '${m.modelId}|${m.agentId}';
       final r = rounds[m.id] ??=
@@ -1466,7 +1472,7 @@ class ChainGroupView extends ConsumerWidget {
               )
               .length +
           1;
-      return '${label(m)} · 第 $r 轮';
+      return trArgs('{0} · 第 {1} 轮', [label(m), r]);
     }
 
     for (final m in sorted.where((m) => m.kind == MsgKind.debate)) {
@@ -1474,8 +1480,16 @@ class ChainGroupView extends ConsumerWidget {
       if (!speakers.contains(l)) speakers.add(l);
     }
     final title = debate
-        ? '辩论 · ${speakers.join(' vs ')} · $doneCount/${sorted.length}'
-        : '接力分析 · ${sorted.map(label).join(' → ')} · $doneCount/${sorted.length}';
+        ? trArgs('辩论 · {0} · {1}/{2}', [
+            speakers.join(' vs '),
+            doneCount,
+            sorted.length,
+          ])
+        : trArgs('接力分析 · {0} · {1}/{2}', [
+            sorted.map(label).join(' → '),
+            doneCount,
+            sorted.length,
+          ]);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1547,11 +1561,14 @@ class _ChainStepState extends State<_ChainStep> {
     final waiting = m.status == MsgStatus.pending && !hasContent;
 
     final (statusText, statusColor) = switch (m.status) {
-      MsgStatus.pending when waiting => ('等待中', colors.onSurfaceVariantSummary),
-      MsgStatus.pending || MsgStatus.streaming => ('分析中…', colors.primary),
-      MsgStatus.error => ('失败', colors.error),
-      MsgStatus.stopped => ('已停止', colors.onSurfaceVariantSummary),
-      _ => (m.adopted ? '最终结论' : '完成', colors.primary),
+      MsgStatus.pending when waiting => (
+        tr('等待中'),
+        colors.onSurfaceVariantSummary,
+      ),
+      MsgStatus.pending || MsgStatus.streaming => (tr('分析中…'), colors.primary),
+      MsgStatus.error => (tr('失败'), colors.error),
+      MsgStatus.stopped => (tr('已停止'), colors.onSurfaceVariantSummary),
+      _ => (m.adopted ? tr('最终结论') : tr('完成'), colors.primary),
     };
 
     final preview = ContentPart.decodeList(m.partsJson).text

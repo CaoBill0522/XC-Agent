@@ -20,6 +20,7 @@ import 'ids.dart';
 import 'image_store.dart';
 import 'repositories/channel_repository.dart';
 import 'tool_service.dart';
+import '../l10n/tr.dart';
 
 /// 待发送的图片（已压缩）。
 /// 搜索结果：标题命中（[messageId] 为空）或某条消息命中。
@@ -116,7 +117,17 @@ class ChatService {
     _db.conversations,
   )..where((c) => c.id.equals(id))).getSingleOrNull();
 
+  /// 存进数据库的默认标题（中文原文，启动清理空会话时按它判断）；显示时用 [displayTitle]。
   static const defaultTitle = '新对话';
+
+  /// 界面上显示的会话标题：默认标题和「追问：」前缀随语言翻译。
+  static String displayTitle(String title) {
+    if (title == defaultTitle) return tr(title);
+    if (title.startsWith(followUpPrefix)) {
+      return tr(followUpPrefix) + title.substring(followUpPrefix.length);
+    }
+    return title;
+  }
 
   Future<String> createConversation(
     List<Participant> participants, {
@@ -277,9 +288,9 @@ class ChatService {
   /// 复制一份，两个对话互不影响。返回新对话 id。
   Future<String> branchFrom(String msgId) async {
     final msg = await _message(msgId);
-    if (msg == null) throw ApiException('消息不存在');
+    if (msg == null) throw ApiException(tr('消息不存在'));
     final conv = await conversation(msg.conversationId);
-    if (conv == null) throw ApiException('对话不存在');
+    if (conv == null) throw ApiException(tr('对话不存在'));
     final ordered = await _db.messagesOf(conv.id);
     final idx = ordered.indexWhere((m) => m.id == msgId);
     final keep = [
@@ -299,7 +310,7 @@ class ChatService {
           .insert(
             ConversationsCompanion.insert(
               id: id,
-              title: '分支：${conv.title}',
+              title: trArgs('分支：{0}', [conv.title]),
               mode: Value(conv.mode),
               participantsJson: Value(conv.participantsJson),
               webSearch: Value(conv.webSearch),
@@ -474,7 +485,7 @@ class ChatService {
   /// 「新对话追问」：用回答 [sourceMsgId] 的 Agent 新建单模型对话，标题为「追问：xxx」。
   Future<String> createFollowUp(String sourceMsgId, String selection) async {
     final src = await _message(sourceMsgId);
-    if (src == null || src.modelId == null) throw ApiException('原回答不存在');
+    if (src == null || src.modelId == null) throw ApiException(tr('原回答不存在'));
     return createConversation(
       [Participant(modelId: src.modelId!, agentId: src.agentId)],
       title: followUpTitle(selection),
@@ -490,7 +501,7 @@ class ChatService {
     CancelToken? cancel,
   }) async* {
     final src = await _message(sourceMsgId);
-    if (src == null) throw ApiException('原回答不存在');
+    if (src == null) throw ApiException(tr('原回答不存在'));
 
     final history = [
       ...await _history(src),
@@ -500,12 +511,10 @@ class ChatService {
       ),
       ChatTurn(
         role: 'user',
-        text:
-            '我接下来要在一个新对话里，针对你回答中的这段内容继续追问：\n'
-            '「${selection.trim()}」\n\n'
-            '请把以上对话总结成新对话的背景：说明我最初的问题、讨论中的关键信息、'
-            '你给出的主要结论，侧重与这段内容相关的部分。直接输出总结，'
-            '不要寒暄，不要回答追问本身，控制在 300 字以内。',
+        text: trArgs(
+          '我接下来要在一个新对话里，针对你回答中的这段内容继续追问：\n「{0}」\n\n请把以上对话总结成新对话的背景：说明我最初的问题、讨论中的关键信息、你给出的主要结论，侧重与这段内容相关的部分。直接输出总结，不要寒暄，不要回答追问本身，控制在 300 字以内。',
+          [selection.trim()],
+        ),
       ),
     ];
 
@@ -547,7 +556,7 @@ class ChatService {
             yield out.toString();
           }
         }
-        if (out.isEmpty) throw ApiException('模型没有返回任何内容');
+        if (out.isEmpty) throw ApiException(tr('模型没有返回任何内容'));
         _router.reportSuccess(route.channel.id);
         return;
       } on ApiException catch (e) {
@@ -575,7 +584,7 @@ class ChatService {
     final conv = await conversation(convId);
     if (conv == null) return;
     final participants = Participant.decodeList(conv.participantsJson);
-    if (participants.isEmpty) throw ApiException('请先选择模型');
+    if (participants.isEmpty) throw ApiException(tr('请先选择模型'));
 
     final parts = <ContentPart>[
       if (context case final c? when c.trim().isNotEmpty) ContextPart(c.trim()),
@@ -603,7 +612,7 @@ class ChatService {
       await rename(
         convId,
         t.isEmpty
-            ? (files.isNotEmpty ? files.first.name : '图片')
+            ? (files.isNotEmpty ? files.first.name : tr('图片'))
             : (t.length > 30 ? '${t.substring(0, 30)}…' : t),
       );
     }
@@ -741,7 +750,7 @@ class ChatService {
       final current = await _message(step.id);
       if (current == null) continue;
       if (current.status == MsgStatus.stopped) {
-        await _abortChainAfter(groupId, step.stepIndex!, '接力已停止');
+        await _abortChainAfter(groupId, step.stepIndex!, tr('接力已停止'));
         break;
       }
       await _generate(step.id);
@@ -751,7 +760,7 @@ class ChatService {
         await _abortChainAfter(
           groupId,
           step.stepIndex!,
-          done.status == MsgStatus.stopped ? '接力已停止' : '上一步失败，接力已中止',
+          done.status == MsgStatus.stopped ? tr('接力已停止') : tr('上一步失败，接力已中止'),
         );
         break;
       }
@@ -791,7 +800,7 @@ class ChatService {
     final model = await (_db.select(
       _db.models,
     )..where((x) => x.id.equals(m.modelId ?? ''))).getSingleOrNull();
-    return model?.displayName ?? m.upstreamModel ?? '上一个模型';
+    return model?.displayName ?? m.upstreamModel ?? tr('上一个模型');
   }
 
   /// 接力 / 辩论 / 裁判：把上下文最后一条用户消息换成组合后的提示。
@@ -878,7 +887,10 @@ class ChatService {
       transcript: [
         for (final s in before)
           (
-            '${await _labelOf(s)}（第 ${speakers.indexOf(s) ~/ perRound + 1} 轮）',
+            trArgs('{0}（第 {1} 轮）', [
+              await _labelOf(s),
+              speakers.indexOf(s) ~/ perRound + 1,
+            ]),
             ContentPart.decodeList(s.partsJson).text,
           ),
       ],
@@ -906,7 +918,7 @@ class ChatService {
   _resolveIds(String? modelId, String? agentId) async {
     final models = await _channels.watchModels().first;
     final model = models.where((m) => m.model.id == modelId).firstOrNull;
-    if (model == null) throw ApiException('模型不存在或已被删除，请重新选择');
+    if (model == null) throw ApiException(tr('模型不存在或已被删除，请重新选择'));
     final agent = agentId == null
         ? null
         : await (_db.select(
@@ -914,7 +926,9 @@ class ChatService {
           )..where((a) => a.id.equals(agentId))).getSingleOrNull();
     final candidates = _router.order(model);
     if (candidates.isEmpty) {
-      throw ApiException('「${model.model.displayName}」没有可用渠道（渠道可能已停用）');
+      throw ApiException(
+        trArgs('「{0}」没有可用渠道（渠道可能已停用）', [model.model.displayName]),
+      );
     }
     return (model: model, agent: agent, candidates: candidates);
   }
@@ -1122,7 +1136,7 @@ class ChatService {
         if (acc.started || !_retryable(e) || isLast) {
           final prefix = failures.isEmpty
               ? ''
-              : '已尝试 ${failures.length + 1} 个渠道。\n';
+              : trArgs('已尝试 {0} 个渠道。\n', [failures.length + 1]);
           await _update(
             msg.id,
             MessagesCompanion(
@@ -1171,7 +1185,7 @@ class ChatService {
     } finally {
       timer?.cancel();
     }
-    if (!acc.started) throw ApiException('模型没有返回任何内容');
+    if (!acc.started) throw ApiException(tr('模型没有返回任何内容'));
   }
 
   /// 流式回答，并处理工具调用：模型要求调用工具时在本机执行，把结果交回模型
@@ -1255,7 +1269,7 @@ class ChatService {
             return r;
           }),
       ]);
-      if (cancel.isCancelled) throw ApiException('已停止');
+      if (cancel.isCancelled) throw ApiException(tr('已停止'));
       turns = [
         ...turns,
         ChatTurn(role: 'tool', text: '', toolResults: results),
@@ -1283,7 +1297,7 @@ class ChatService {
       (t) => t.role == 'user',
       orElse: () => const ChatTurn(role: 'user', text: ''),
     );
-    if (last.text.trim().isEmpty) throw ApiException('请输入图片描述');
+    if (last.text.trim().isEmpty) throw ApiException(tr('请输入图片描述'));
     await _update(
       msg.id,
       const MessagesCompanion(status: Value(MsgStatus.streaming)),
@@ -1351,8 +1365,8 @@ class ChatService {
   static List<ChatTurn> summaryTurns(String? summary) => summary == null
       ? const []
       : [
-          ChatTurn(role: 'user', text: '【之前对话的摘要】\n$summary'),
-          const ChatTurn(role: 'assistant', text: '好的，我已了解之前的对话内容。'),
+          ChatTurn(role: 'user', text: trArgs('【之前对话的摘要】\n{0}', [summary])),
+          ChatTurn(role: 'assistant', text: tr('好的，我已了解之前的对话内容。')),
         ];
 
   /// 消息转成发给模型的上下文：用户消息（含图片、附件），以及被采纳且已完成的回答。
@@ -1445,7 +1459,7 @@ class ChatService {
     final conv = await conversation(convId);
     if (conv == null) return;
     final participants = Participant.decodeList(conv.participantsJson);
-    if (participants.isEmpty) throw ApiException('请先选择模型');
+    if (participants.isEmpty) throw ApiException(tr('请先选择模型'));
     final opts = ConversationOptions.decode(conv.optionsJson);
     final ordered = (await _db.messagesOf(convId))
         .where((m) => !MsgStatus.isActive(m.status))
@@ -1459,19 +1473,18 @@ class ChatService {
         if (m.role == 'user') i,
     ];
     if (users.length <= keepRecentTurns) {
-      throw ApiException('对话还很短，不需要压缩');
+      throw ApiException(tr('对话还很短，不需要压缩'));
     }
     final cut = users[users.length - keepRecentTurns];
     final early = msgs.sublist(0, cut);
     final turns = [
       ...summaryTurns(oldSummary),
       ...await _toTurns(early),
-      const ChatTurn(
+      ChatTurn(
         role: 'user',
-        text:
-            '请把以上对话压缩成一份摘要，供之后的对话作为背景：保留我的问题和需求、'
-            '重要的事实与数据、已经得出的结论和尚未解决的问题，省略寒暄和重复内容。'
-            '直接输出摘要，控制在 600 字以内。',
+        text: tr(
+          '请把以上对话压缩成一份摘要，供之后的对话作为背景：保留我的问题和需求、重要的事实与数据、已经得出的结论和尚未解决的问题，省略寒暄和重复内容。直接输出摘要，控制在 600 字以内。',
+        ),
       ),
     ];
     var summary = '';
@@ -1534,9 +1547,9 @@ class ChatService {
         // 接力 / 辩论中还没轮到的步骤、还没开始的裁判。
         await _update(
           m.id,
-          const MessagesCompanion(
+          MessagesCompanion(
             status: Value(MsgStatus.stopped),
-            error: Value('接力已停止'),
+            error: Value(tr('接力已停止')),
           ),
         );
       }
@@ -1640,7 +1653,7 @@ class ChatService {
     );
 
     final participants = Participant.decodeList(conv.participantsJson);
-    if (participants.isEmpty) throw ApiException('请先选择模型');
+    if (participants.isEmpty) throw ApiException(tr('请先选择模型'));
     await _startAnswers(conv, participants, after: msg.createdAt);
   }
 

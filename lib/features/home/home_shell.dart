@@ -15,6 +15,7 @@ import '../search/search_page.dart';
 import 'quick_entry.dart';
 import '../settings/settings_page.dart';
 import '../../ui/top_bar_text.dart';
+import '../../l10n/tr.dart';
 
 /// 根布局：窄屏 = 会话列表页 → push 聊天页；宽屏 = 侧边栏 + 右侧内容。
 class HomeShell extends StatelessWidget {
@@ -66,7 +67,7 @@ class _NarrowHomeState extends ConsumerState<_NarrowHome> {
     return MiuixScaffold(
       topBar: TopBarTextFix(
         child: MiuixTopAppBar(
-          title: 'Agent',
+          title: 'XCAgent',
           scrollBehavior: _scrollBehavior,
           actions: [
             AppIconButton(
@@ -243,7 +244,7 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                           children: [
                             Expanded(
                               child: MiuixText(
-                                'Agent',
+                                'XCAgent',
                                 style: theme.textStyles.title3,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -276,7 +277,7 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                       ),
                       const MiuixHorizontalDivider(),
                       MiuixBasicComponent(
-                        title: '设置',
+                        title: tr('设置'),
                         insideMargin: const EdgeInsets.symmetric(
                           horizontal: 20,
                           vertical: 14,
@@ -331,7 +332,10 @@ class _EmptyPane extends StatelessWidget {
               tint: colors.onSurfaceVariantSummary,
             ),
             const SizedBox(height: 12),
-            MiuixText('选择一个对话，或点击 + 新建', color: colors.onSurfaceVariantSummary),
+            MiuixText(
+              tr('选择一个对话，或点击 + 新建'),
+              color: colors.onSurfaceVariantSummary,
+            ),
           ],
         ),
       ),

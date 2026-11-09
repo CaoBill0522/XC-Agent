@@ -7,6 +7,7 @@ import '../../data/providers.dart';
 import '../../ui/app_icons.dart';
 import '../../ui/settings_widgets.dart';
 import 'channel_edit_page.dart';
+import '../../l10n/tr.dart';
 
 /// 渠道列表。
 class ChannelsPage extends ConsumerWidget {
@@ -27,14 +28,16 @@ class ChannelsPage extends ConsumerWidget {
         presets.where((p) => p.id == id).firstOrNull?.name ?? id;
 
     return SettingsScaffold(
-      title: '渠道',
+      title: tr('渠道'),
       actions: [
         AppIconButton(icon: AppIcons.add, onPressed: () => _add(context)),
       ],
       children: [
         ...channels.when(
           loading: () => [const SizedBox.shrink()],
-          error: (e, _) => [Center(child: MiuixText('加载失败：$e'))],
+          error: (e, _) => [
+            Center(child: MiuixText(trArgs('加载失败：{0}', [e]))),
+          ],
           data: (items) => items.isEmpty
               ? [
                   Padding(
@@ -51,13 +54,13 @@ class ChannelsPage extends ConsumerWidget {
                         ),
                         const SizedBox(height: 12),
                         MiuixText(
-                          '还没有渠道\n添加 API Key 后即可拉取模型开始聊天',
+                          tr('还没有渠道\n添加 API Key 后即可拉取模型开始聊天'),
                           textAlign: TextAlign.center,
                           color: colors.onSurfaceVariantSummary,
                         ),
                         const SizedBox(height: 24),
                         PrimaryButton(
-                          text: '添加渠道',
+                          text: tr('添加渠道'),
                           onPressed: () => _add(context),
                         ),
                       ],
@@ -81,8 +84,8 @@ class ChannelsPage extends ConsumerWidget {
                                 s.channel.name)
                               presetName(s.channel.presetId),
                             s.protocol.label,
-                            '${s.modelCount} 个模型',
-                            if (!s.channel.enabled) '已停用',
+                            trArgs('{0} 个模型', [s.modelCount]),
+                            if (!s.channel.enabled) tr('已停用'),
                           ].join(' · '),
                           onClick: () => Navigator.of(context).push(
                             MaterialPageRoute(
@@ -108,11 +111,13 @@ class PresetPickerPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final presets = ref.watch(presetsProvider);
     return SettingsScaffold(
-      title: '选择厂商',
+      title: tr('选择厂商'),
       children: [
         ...presets.when(
           loading: () => [const SizedBox.shrink()],
-          error: (e, _) => [Center(child: MiuixText('预设加载失败：$e'))],
+          error: (e, _) => [
+            Center(child: MiuixText(trArgs('预设加载失败：{0}', [e]))),
+          ],
           data: (list) => [
             SettingsGroup(
               children: [
@@ -120,7 +125,7 @@ class PresetPickerPage extends ConsumerWidget {
                   MiuixArrowPreference(
                     title: p.name,
                     summary: p.isCustom
-                        ? '任意 OpenAI / Anthropic 兼容地址'
+                        ? tr('任意 OpenAI / Anthropic 兼容地址')
                         : p.endpoints.map((e) => e.protocol.label).join(' / '),
                     onClick: () => Navigator.of(context).pushReplacement(
                       MaterialPageRoute(

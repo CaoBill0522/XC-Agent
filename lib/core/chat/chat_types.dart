@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../l10n/tr.dart';
+
 /// 消息内容块，存进 Messages.partsJson。`type` 字段是存储格式，不要改。
 sealed class ContentPart {
   const ContentPart();
@@ -19,7 +21,7 @@ sealed class ContentPart {
       'quote' => QuotePart(j['text'] as String? ?? ''),
       'file' => FilePart(
         j['path'] as String,
-        j['name'] as String? ?? '文件',
+        j['name'] as String? ?? tr('文件'),
         j['mime'] as String? ?? 'application/octet-stream',
         (j['size'] as num?)?.toInt() ?? 0,
       ),
@@ -205,14 +207,14 @@ extension ContentPartsX on List<ContentPart> {
     }
     final b = StringBuffer();
     if (ctx != null && ctx.isNotEmpty) {
-      b.write('【背景：之前对话的总结】\n$ctx\n\n');
+      b.write(trArgs('【背景：之前对话的总结】\n{0}\n\n', [ctx]));
     }
     if (q != null && q.isNotEmpty) {
-      b.write('【我想追问的内容】\n');
+      b.write(tr('【我想追问的内容】\n'));
       b.write(q.split('\n').map((l) => '> $l').join('\n'));
       b.write('\n\n');
     }
-    b.write(question.isEmpty ? '请解释一下上面这段内容。' : question);
+    b.write(question.isEmpty ? tr('请解释一下上面这段内容。') : question);
     return b.toString();
   }
 }
@@ -330,9 +332,10 @@ enum ReasoningEffort {
   medium('medium', '中'),
   high('high', '高');
 
-  const ReasoningEffort(this.id, this.label);
+  const ReasoningEffort(this.id, this._label);
   final String id;
-  final String label;
+  final String _label;
+  String get label => tr(_label);
 
   static ReasoningEffort fromId(String? id) =>
       values.firstWhere((e) => e.id == id, orElse: () => auto);

@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:quick_actions/quick_actions.dart';
 
 import '../../data/providers.dart';
+import '../../l10n/tr.dart';
 
 /// 从 App 外部进入的快捷操作：主屏图标长按菜单、Siri / 快捷指令、
 /// `xcagent://` 链接、桌面全局快捷键。
@@ -127,12 +128,12 @@ class _QuickEntryHostState extends ConsumerState<QuickEntryHost> {
           case 'new':
             _push(const NewChatEntry());
           case 'search':
-            _push(const SearchEntry());
+            _push(SearchEntry());
         }
       });
-      await actions.setShortcutItems(const [
-        ShortcutItem(type: 'new', localizedTitle: '新对话'),
-        ShortcutItem(type: 'search', localizedTitle: '搜索对话'),
+      await actions.setShortcutItems([
+        ShortcutItem(type: 'new', localizedTitle: tr('新对话')),
+        ShortcutItem(type: 'search', localizedTitle: tr('搜索对话')),
       ]);
     }
 
@@ -179,8 +180,8 @@ class _HotkeyPreferenceState extends ConsumerState<HotkeyPreference> {
     final on = prefs.getBool(hotkeyPrefKey) ?? true;
     final keys = Platform.isMacOS ? '⌥ Space' : 'Alt + Space';
     return MiuixSwitchPreference(
-      title: '全局快捷键',
-      summary: '在任何地方按 $keys 呼出 XC-Agent 并新建对话',
+      title: tr('全局快捷键'),
+      summary: trArgs('在任何地方按 {0} 呼出 XCAgent 并新建对话', [keys]),
       value: on,
       onChanged: (v) async {
         await prefs.setBool(hotkeyPrefKey, v);

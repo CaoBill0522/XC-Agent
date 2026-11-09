@@ -12,6 +12,7 @@ import '../../ui/motion.dart';
 import '../../ui/top_bar_text.dart';
 import '../../ui/vendor/app_text_field.dart';
 import '../conversations/conversation_list.dart';
+import '../../l10n/tr.dart';
 
 /// 打开对话时要定位并高亮的消息（搜索结果跳转）。
 class PendingFocus {
@@ -81,7 +82,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     return MiuixScaffold(
       topBar: TopBarTextFix(
         child: MiuixSmallTopAppBar(
-          title: '搜索',
+          title: tr('搜索'),
           navigationIcon: AppIconButton(
             icon: AppIcons.back,
             onPressed: () => Navigator.of(context).maybePop(),
@@ -101,7 +102,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     padding: EdgeInsets.fromLTRB(gutter, 4, gutter, 8),
                     child: AppTextField(
                       controller: _query,
-                      label: '搜索对话标题和内容',
+                      label: tr('搜索对话标题和内容'),
                       useLabelAsPlaceholder: true,
                       autofocus: true,
                       singleLine: true,
@@ -130,7 +131,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           : hits.isEmpty
                           ? Center(
                               child: MiuixText(
-                                '没有找到「$_searched」',
+                                trArgs('没有找到「{0}」', [_searched]),
                                 color: colors.onSurfaceVariantSummary,
                               ),
                             )
@@ -189,7 +190,7 @@ class _HitTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: MiuixText(
-                    hit.conversation.title,
+                    ChatService.displayTitle(hit.conversation.title),
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     maxLines: 1,
@@ -209,9 +210,9 @@ class _HitTile extends StatelessWidget {
                 style: base,
                 children: [
                   if (!titleHit)
-                    TextSpan(text: hit.role == 'user' ? '我：' : '回答：'),
+                    TextSpan(text: hit.role == 'user' ? tr('我：') : tr('回答：')),
                   if (titleHit)
-                    const TextSpan(text: '标题匹配')
+                    TextSpan(text: tr('标题匹配'))
                   else ...[
                     TextSpan(text: s.substring(0, start)),
                     TextSpan(

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import '../api/sse.dart';
+import '../../l10n/tr.dart';
 
 /// 远程 MCP 服务器（Streamable HTTP 传输）。iOS / Android 不能启动本地进程，
 /// 只支持这种通过网址连接的服务器；桌面端同样走这条路。
@@ -98,7 +99,7 @@ class McpClient {
       {
         'protocolVersion': protocolVersion,
         'capabilities': <String, dynamic>{},
-        'clientInfo': {'name': 'XC-Agent', 'version': '1.0'},
+        'clientInfo': {'name': 'XCAgent', 'version': '1.0'},
       },
       cancel: cancel,
       init: true,
@@ -197,7 +198,9 @@ class McpClient {
       );
     } on DioException catch (e) {
       throw McpException(
-        e.type == DioExceptionType.cancel ? '已取消' : '无法连接 MCP 服务器：${e.message}',
+        e.type == DioExceptionType.cancel
+            ? tr('已取消')
+            : trArgs('无法连接 MCP 服务器：{0}', [e.message]),
       );
     }
     final status = res.statusCode ?? 0;
@@ -211,12 +214,15 @@ class McpClient {
     if (res.headers.value('mcp-session-id') case final s?) _session = s;
     final body = res.data!;
     if (status == 401 || status == 403) {
-      throw McpException('MCP 服务器拒绝访问（$status），请检查令牌');
+      throw McpException(trArgs('MCP 服务器拒绝访问（{0}），请检查令牌', [status]));
     }
     if (status < 200 || status >= 300) {
       final text = await utf8.decodeStream(body.stream).catchError((_) => '');
       throw McpException(
-        'MCP 服务器返回 $status${text.isEmpty ? '' : '：${_short(text)}'}',
+        trArgs('MCP 服务器返回 {0}{1}', [
+          status,
+          text.isEmpty ? '' : '：${_short(text)}',
+        ]),
       );
     }
 
@@ -234,9 +240,9 @@ class McpClient {
       final j = _decode(await utf8.decodeStream(body.stream));
       if (j != null) message = j;
     }
-    if (message == null) throw McpException('MCP 服务器没有返回结果');
+    if (message == null) throw McpException(tr('MCP 服务器没有返回结果'));
     if (message['error'] case final Map err) {
-      throw McpException('MCP 错误：${err['message'] ?? err}');
+      throw McpException(trArgs('MCP 错误：{0}', [err['message'] ?? err]));
     }
     final result = message['result'];
     return result is Map<String, dynamic> ? result : {};

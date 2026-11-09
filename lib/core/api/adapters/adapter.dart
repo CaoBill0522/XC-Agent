@@ -6,6 +6,7 @@ import '../sse.dart';
 import 'anthropic_adapter.dart';
 import 'openai_chat_adapter.dart';
 import 'openai_responses_adapter.dart';
+import '../../../l10n/tr.dart';
 
 /// 协议适配器：把通用的 [ChatRequest] 转成某种协议的请求体，并把该协议的流式响应解析成 [ChatEvent]。
 abstract class ProtocolAdapter {
@@ -59,13 +60,13 @@ bool supportsWebSearch({
 
 /// 抛出流中的错误对象（OpenAI: {error:{message}}；Anthropic: {type:error,error:{message}}）。
 Never throwStreamError(Object? error) {
-  String msg = '服务端返回错误';
+  String msg = tr('服务端返回错误');
   if (error is Map) {
     msg = (error['message'] ?? error['type'] ?? msg).toString();
   } else if (error is String) {
     msg = error;
   }
-  throw ApiException('请求失败', detail: msg);
+  throw ApiException(tr('请求失败'), detail: msg);
 }
 
 /// 从 data URL 里拆出 mime 和 base64。

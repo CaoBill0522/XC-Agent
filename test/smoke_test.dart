@@ -7,6 +7,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:agent/features/settings/tools_page.dart';
+import 'package:agent/l10n/en.dart';
+import 'package:agent/features/onboarding/onboarding.dart';
+import 'package:agent/l10n/tr.dart';
 import 'package:agent/core/api/protocol.dart';
 import 'package:agent/core/chat/chat_types.dart';
 import 'package:agent/core/chat/conversation_mode.dart';
@@ -776,7 +779,7 @@ void main() {
     await _open(tester, const PromptEditPage());
 
     await _open(tester, ExportImagePage(conversationId: judgeConv));
-    expect(find.text('由 XC-Agent 生成'), findsOneWidget);
+    expect(find.text('由 XCAgent 生成'), findsOneWidget);
     expect(find.text('裁判 · gpt-4o'), findsOneWidget);
     await _close(tester);
   });
@@ -893,6 +896,114 @@ void main() {
     // 模型详情：路由策略相关项。
     await _open(tester, ModelDetailPage(modelId: modelId));
     expect(find.text('路由策略'), findsOneWidget);
+    await _close(tester);
+  });
+
+  testWidgets('英文界面：各页面没有漏翻的中文界面文字', (tester) async {
+    L10n.use(AppLanguage.en);
+    addTearDown(() => L10n.use(AppLanguage.zh));
+    final cjk = RegExp(r'[\u4e00-\u9fff]');
+    // 测试数据（对话标题、消息、助手名等）本身是中文，不算漏翻。
+    const seeded = {
+      '你好',
+      '看图',
+      '生成中',
+      '想想',
+      '翻译官',
+      '你是翻译',
+      '测试渠道',
+      '备用渠道',
+      '工作',
+      '网页正文',
+      '标题',
+      '第二步',
+      '甲的回答',
+      '裁判点评',
+      '引用的一段话',
+      '发言',
+      '总结：都好',
+    };
+    // 内置提示词是建库时按当时的语言写入的数据（测试里建库时是中文）。
+    final prompts = {
+      for (final (t, c) in AppDatabase.defaultPrompts) ...[t, c.trim()],
+    };
+    final leaks = <String>{};
+    void collect() {
+      for (final w in tester.allWidgets) {
+        final String? text = switch (w) {
+          Text(:final data?) => data,
+          RichText(:final text) => text.toPlainText(),
+          _ => null,
+        };
+        if (text == null || !cjk.hasMatch(text)) continue;
+        if (seeded.any(text.contains) || prompts.contains(text.trim())) {
+          continue;
+        }
+        if (enStrings.containsKey(text) ||
+            !text.contains(RegExp(r'[A-Za-z]'))) {
+          leaks.add(text);
+        }
+      }
+    }
+
+    for (final page in <Widget>[
+      const HomeShell(),
+      const SettingsPage(),
+      const ChannelsPage(),
+      const PresetPickerPage(),
+      const ModelsPage(),
+      const AgentsPage(),
+      const AppearancePage(),
+      const DataPage(),
+      const ToolsPage(),
+      const McpServerPage(),
+      const PromptsPage(),
+      const UsagePage(),
+      ChannelEditPage(channelId: channelId),
+      ModelDetailPage(modelId: modelId),
+      AgentEditPage(agentId: agentId),
+      ChatPage(conversationId: chatConv),
+      ChatPage(conversationId: multiConv),
+      ChatPage(conversationId: chainConv),
+      ChatPage(conversationId: judgeConv),
+      ChatPage(conversationId: debateConv),
+    ]) {
+      await _open(tester, page);
+      collect();
+    }
+    final id = (await tester.runAsync(_newEmpty))!;
+    await _open(tester, ChatPage(conversationId: id));
+    collect();
+    await _close(tester);
+    expect(leaks, isEmpty);
+  });
+
+  testWidgets('首次打开：功能引导，可切英文，翻到最后进入首页', (tester) async {
+    addTearDown(() => L10n.use(AppLanguage.zh));
+    // 全新安装：没有任何渠道。
+    await tester.runAsync(() => db.delete(db.channels).go());
+    await _open(tester, const OnboardingGate(child: HomeShell()));
+    expect(find.text('欢迎使用 XCAgent'), findsOneWidget);
+
+    await _tapText(tester, 'English');
+    expect(find.text('Welcome to XCAgent'), findsOneWidget);
+    for (final _ in [1, 2, 3]) {
+      await _tapText(tester, 'Next');
+    }
+    expect(find.text('Your data stays yours'), findsOneWidget);
+    await _tapText(tester, 'Just look around');
+    expect(find.text('XCAgent'), findsWidgets);
+    expect(find.text('Welcome to XCAgent'), findsNothing);
+    final prefs = await tester.runAsync(SharedPreferences.getInstance);
+    expect(prefs!.getBool(OnboardingGate.doneKey), isTrue);
+    expect(prefs.getString('language'), 'en');
+    await _close(tester);
+  });
+
+  testWidgets('已经配过渠道的老用户不显示引导', (tester) async {
+    await _open(tester, const OnboardingGate(child: HomeShell()));
+    expect(find.text('欢迎使用 XCAgent'), findsNothing);
+    expect(find.text('XCAgent'), findsWidgets);
     await _close(tester);
   });
 }

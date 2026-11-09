@@ -11,6 +11,7 @@ import '../core/chat/chat_types.dart';
 import '../data/providers.dart';
 import 'app_icons.dart';
 import 'motion.dart';
+import '../l10n/tr.dart';
 
 /// 本地图片缩略图（点击全屏查看）。
 class LocalImage extends ConsumerWidget {
@@ -138,16 +139,16 @@ class ImageViewer extends StatelessWidget {
       if (Platform.isIOS || Platform.isAndroid) {
         if (!await Gal.hasAccess(toAlbum: false)) await Gal.requestAccess();
         await Gal.putImage(file.path);
-        snack.showSnackbar('已保存到相册');
+        snack.showSnackbar(tr('已保存到相册'));
       } else {
         final ext = mime.split('/').last.replaceAll('jpeg', 'jpg');
         final loc = await getSaveLocation(suggestedName: 'image.$ext');
         if (loc == null) return;
         await file.copy(loc.path);
-        snack.showSnackbar('已保存');
+        snack.showSnackbar(tr('已保存'));
       }
     } catch (e) {
-      snack.showSnackbar('保存失败：$e');
+      snack.showSnackbar(trArgs('保存失败：{0}', [e]));
     }
   }
 

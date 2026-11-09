@@ -10,6 +10,7 @@ import '../../data/usage_service.dart';
 import '../../ui/motion.dart';
 import '../../ui/settings_widgets.dart';
 import '../models/models_page.dart';
+import '../../l10n/tr.dart';
 
 const _currencyKey = 'usage_currency';
 
@@ -20,8 +21,9 @@ enum UsagePeriod {
   month('近 30 天'),
   all('全部');
 
-  const UsagePeriod(this.label);
-  final String label;
+  const UsagePeriod(this._label);
+  final String _label;
+  String get label => tr(_label);
 
   DateTime? since(DateTime now) => switch (this) {
     today => DateTime(now.year, now.month, now.day),
@@ -78,7 +80,7 @@ class _UsagePageState extends ConsumerState<UsagePage> {
     } on ApiException catch (e) {
       text = e.message;
     } catch (e) {
-      text = '查询失败：$e';
+      text = trArgs('查询失败：{0}', [e]);
     }
     if (!mounted) return;
     setState(() {
@@ -96,19 +98,23 @@ class _UsagePageState extends ConsumerState<UsagePage> {
 
     String detail(UsageTotal u) {
       final cost = u.requests == u.unpriced
-          ? '未设置单价'
+          ? tr('未设置单价')
           : '${_money(u.cost)}${u.unpriced > 0 ? '（部分未设单价）' : ''}';
-      return '${u.requests} 次 · 输入 ${formatTokens(u.input)} · '
-          '输出 ${formatTokens(u.output)} · $cost';
+      return trArgs('{0} 次 · 输入 {1} · 输出 {2} · {3}', [
+        u.requests,
+        formatTokens(u.input),
+        formatTokens(u.output),
+        cost,
+      ]);
     }
 
     return SettingsScaffold(
-      title: '用量统计',
+      title: tr('用量统计'),
       children: [
         SettingsGroup(
           children: [
             MiuixOverlayDropdownPreference(
-              title: '统计区间',
+              title: tr('统计区间'),
               items: [for (final p in UsagePeriod.values) p.label],
               selectedIndex: UsagePeriod.values.indexOf(_period),
               onSelectedIndexChange: (i) => setState(() {
@@ -117,9 +123,9 @@ class _UsagePageState extends ConsumerState<UsagePage> {
               }),
             ),
             MiuixOverlayDropdownPreference(
-              title: '货币',
-              summary: '模型单价使用的货币',
-              items: const [r'美元 $', '人民币 ¥'],
+              title: tr('货币'),
+              summary: tr('模型单价使用的货币'),
+              items: [tr('美元 \$'), tr('人民币 ¥')],
               selectedIndex: _currency == '¥' ? 1 : 0,
               onSelectedIndexChange: (i) {
                 ref
@@ -148,7 +154,7 @@ class _UsagePageState extends ConsumerState<UsagePage> {
                         ),
                         if (r.byModel.isNotEmpty)
                           SettingsGroup(
-                            title: '按模型（点击设置单价）',
+                            title: tr('按模型（点击设置单价）'),
                             children: [
                               for (final row in r.byModel)
                                 MiuixArrowPreference(
@@ -165,7 +171,7 @@ class _UsagePageState extends ConsumerState<UsagePage> {
                           ),
                         if (r.byChannel.isNotEmpty)
                           SettingsGroup(
-                            title: '按渠道',
+                            title: tr('按渠道'),
                             children: [
                               for (final row in r.byChannel)
                                 MiuixBasicComponent(
@@ -183,15 +189,15 @@ class _UsagePageState extends ConsumerState<UsagePage> {
           (c) => ChannelClient.supportsBalance(c.channel.presetId),
         ))
           SettingsGroup(
-            title: '余额（DeepSeek 官方、New API / One API 中转站）',
+            title: tr('余额（DeepSeek 官方、New API / One API 中转站）'),
             children: [
               for (final c in channels)
                 if (ChannelClient.supportsBalance(c.channel.presetId))
                   MiuixBasicComponent(
                     title: c.channel.name,
                     summary: _loading.contains(c.channel.id)
-                        ? '查询中…'
-                        : _balances[c.channel.id] ?? '点击查询',
+                        ? tr('查询中…')
+                        : _balances[c.channel.id] ?? tr('点击查询'),
                     onClick: _loading.contains(c.channel.id)
                         ? null
                         : () => _queryBalance(c.channel),
@@ -201,8 +207,9 @@ class _UsagePageState extends ConsumerState<UsagePage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 0, 28, 16),
           child: MiuixText(
-            '费用 = 输入 token × 输入单价 + 输出 token × 输出单价，单价在「模型」里按每百万 token 设置。'
-            '只统计模型返回了用量的请求，仅供参考，以渠道账单为准。',
+            tr(
+              '费用 = 输入 token × 输入单价 + 输出 token × 输出单价，单价在「模型」里按每百万 token 设置。只统计模型返回了用量的请求，仅供参考，以渠道账单为准。',
+            ),
             fontSize: 12,
             color: colors.onSurfaceVariantSummary,
           ),
@@ -242,14 +249,14 @@ class _Summary extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
           child: Row(
             children: [
-              cell('${total.requests}', '请求'),
-              cell(formatTokens(total.input), '输入'),
-              cell(formatTokens(total.output), '输出'),
+              cell('${total.requests}', tr('请求')),
+              cell(formatTokens(total.input), tr('输入')),
+              cell(formatTokens(total.output), tr('输出')),
               cell(
                 total.requests > 0 && total.requests == total.unpriced
                     ? '—'
                     : money(total.cost),
-                '费用',
+                tr('费用'),
               ),
             ],
           ),

@@ -151,7 +151,7 @@ final class ICloudChannel: NSObject, FlutterPlugin {
 }
 
 
-/// Siri / 快捷指令「问 XC-Agent」→ Flutter：App 已启动时直接调过去，
+/// Siri / 快捷指令「问 XCAgent」→ Flutter：App 已启动时直接调过去，
 /// 还没启动完时先存着，等 Flutter 端用 takePending 取走。
 final class QuickAskBridge {
   static let shared = QuickAskBridge()
@@ -189,8 +189,8 @@ final class QuickAskBridge {
 
 @available(iOS 16.0, *)
 struct AskXCAgentIntent: AppIntent {
-  static var title: LocalizedStringResource = "问 XC-Agent"
-  static var description = IntentDescription("打开 XC-Agent 新建一个对话，可以带上要问的内容。")
+  static var title: LocalizedStringResource = "问 XCAgent"
+  static var description = IntentDescription("打开 XCAgent 新建一个对话，可以带上要问的内容。Open XCAgent with a new chat.")
   static var openAppWhenRun: Bool = true
 
   @Parameter(title: "问题", requestValueDialog: "想问什么？")

@@ -3,6 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_miuix/miuix.dart';
 
 import 'vendor/app_text_field.dart';
+import '../l10n/tr.dart';
 
 /// miuix 的对话框 / 底部面板是声明式的（show 参数控制），这里包装成命令式调用：
 /// 推一个透明路由，里面放一个透明 MiuixScaffold 作为弹层宿主。
@@ -120,8 +121,8 @@ class DialogButtons extends StatelessWidget {
       padding: const EdgeInsets.only(top: 20),
       child: Row(
         children: [
-          Expanded(child: MiuixTextButton('取消', onPressed: onCancel)),
-          const SizedBox(width: 12),
+          Expanded(child: MiuixTextButton(tr('取消'), onPressed: onCancel)),
+          SizedBox(width: 12),
           Expanded(
             child: MiuixTextButton(
               confirmText,
@@ -142,7 +143,7 @@ Future<bool> showConfirm(
   BuildContext context, {
   required String title,
   String? message,
-  String confirmText = '确定',
+  String? confirmText,
   bool destructive = false,
 }) async {
   final r = await showAppDialog<bool>(
@@ -150,7 +151,7 @@ Future<bool> showConfirm(
     title: title,
     summary: message,
     content: (ctx, close) => DialogButtons(
-      confirmText: confirmText,
+      confirmText: confirmText ?? tr('确定'),
       destructive: destructive,
       onConfirm: () => close(true),
       onCancel: () => close(false),
@@ -188,7 +189,7 @@ Future<String?> showTextInput(
           onSubmitted: multiline ? null : (v) => close(v),
         ),
         DialogButtons(
-          confirmText: '确定',
+          confirmText: tr('确定'),
           onConfirm: () => close(controller.text),
           onCancel: close,
         ),

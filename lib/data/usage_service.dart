@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import 'db/app_database.dart';
+import '../l10n/tr.dart';
 
 /// 一组用量汇总（全部 / 某个模型 / 某个渠道）。
 class UsageTotal {
@@ -76,7 +77,7 @@ class UsageService {
       final model = models[m.modelId];
       total.add(inTok, outTok, model);
       final mk = m.modelId ?? '?';
-      modelLabels[mk] = model?.displayName ?? m.upstreamModel ?? '已删除的模型';
+      modelLabels[mk] = model?.displayName ?? m.upstreamModel ?? tr('已删除的模型');
       byModel.putIfAbsent(mk, UsageTotal.new).add(inTok, outTok, model);
       byChannel
           .putIfAbsent(m.channelId ?? '?', UsageTotal.new)
@@ -99,7 +100,7 @@ class UsageService {
     return UsageReport(
       total: total,
       byModel: sorted(byModel, (id) => modelLabels[id] ?? id),
-      byChannel: sorted(byChannel, (id) => channels[id]?.name ?? '已删除的渠道'),
+      byChannel: sorted(byChannel, (id) => channels[id]?.name ?? tr('已删除的渠道')),
     );
   }
 

@@ -8,6 +8,7 @@ import '../../ui/app_icons.dart';
 import '../../ui/dialogs.dart';
 import '../../ui/settings_widgets.dart';
 import '../../ui/vendor/app_text_field.dart';
+import '../../l10n/tr.dart';
 
 /// 助手列表：每个助手 = 模型 + 系统提示词 + 参数。
 class AgentsPage extends ConsumerWidget {
@@ -23,7 +24,7 @@ class AgentsPage extends ConsumerWidget {
     final agents = ref.watch(agentsProvider).value ?? const [];
     final models = ref.watch(modelsProvider).value ?? const [];
     return SettingsScaffold(
-      title: '助手',
+      title: tr('助手'),
       actions: [
         AppIconButton(icon: AppIcons.add, onPressed: () => _edit(context)),
       ],
@@ -34,12 +35,15 @@ class AgentsPage extends ConsumerWidget {
             child: Column(
               children: [
                 MiuixText(
-                  '助手 = 模型 + 系统提示词 + 参数\n例如「翻译官」「代码审查」，聊天时直接选用',
+                  tr('助手 = 模型 + 系统提示词 + 参数\n例如「翻译官」「代码审查」，聊天时直接选用'),
                   textAlign: TextAlign.center,
                   color: colors.onSurfaceVariantSummary,
                 ),
                 const SizedBox(height: 24),
-                PrimaryButton(text: '新建助手', onPressed: () => _edit(context)),
+                PrimaryButton(
+                  text: tr('新建助手'),
+                  onPressed: () => _edit(context),
+                ),
               ],
             ),
           )
@@ -55,7 +59,7 @@ class AgentsPage extends ConsumerWidget {
                             .firstOrNull
                             ?.model
                             .displayName ??
-                        '未设置模型',
+                        tr('未设置模型'),
                     if (a.systemPrompt.trim().isNotEmpty)
                       a.systemPrompt
                           .trim()
@@ -136,11 +140,11 @@ class _AgentEditPageState extends ConsumerState<AgentEditPage> {
         : int.tryParse(_maxTokens.text.trim());
     if (_temperature.text.trim().isNotEmpty &&
         (temp == null || temp < 0 || temp > 2)) {
-      _snackbar.showSnackbar('温度应为 0~2 之间的数字');
+      _snackbar.showSnackbar(tr('温度应为 0~2 之间的数字'));
       return;
     }
     if (_maxTokens.text.trim().isNotEmpty && (max == null || max <= 0)) {
-      _snackbar.showSnackbar('最大输出应为正整数');
+      _snackbar.showSnackbar(tr('最大输出应为正整数'));
       return;
     }
     await ref
@@ -162,9 +166,9 @@ class _AgentEditPageState extends ConsumerState<AgentEditPage> {
   Future<void> _delete() async {
     final ok = await showConfirm(
       context,
-      title: '删除助手',
-      message: '已有对话中使用该助手的回答会保留。',
-      confirmText: '删除',
+      title: tr('删除助手'),
+      message: tr('已有对话中使用该助手的回答会保留。'),
+      confirmText: tr('删除'),
       destructive: true,
     );
     if (!ok) return;
@@ -181,35 +185,46 @@ class _AgentEditPageState extends ConsumerState<AgentEditPage> {
     final modelIdx = models.indexWhere((m) => m.model.id == _modelId);
 
     return SettingsScaffold(
-      title: widget.agentId == null ? '新建助手' : '编辑助手',
+      title: widget.agentId == null ? tr('新建助手') : tr('编辑助手'),
       snackbar: _snackbar,
-      bottomBar: PrimaryButton(text: '保存', enabled: _loaded, onPressed: _save),
+      bottomBar: PrimaryButton(
+        text: tr('保存'),
+        enabled: _loaded,
+        onPressed: _save,
+      ),
       children: [
         SettingsGroup(
-          title: '基本',
+          title: tr('基本'),
           children: [
-            SettingsField(controller: _name, label: '名称', autocorrect: true),
+            SettingsField(
+              controller: _name,
+              label: tr('名称'),
+              autocorrect: true,
+            ),
             if (models.isEmpty)
-              const MiuixBasicComponent(title: '模型', summary: '还没有可用模型，请先添加渠道')
+              MiuixBasicComponent(
+                title: tr('模型'),
+                summary: tr('还没有可用模型，请先添加渠道'),
+              )
             else
               MiuixOverlayDropdownPreference(
-                title: '模型',
+                title: tr('模型'),
                 items: [for (final m in models) m.model.displayName],
                 selectedIndex: modelIdx < 0 ? 0 : modelIdx,
-                summary: modelIdx < 0 ? '请选择' : null,
+                summary: modelIdx < 0 ? tr('请选择') : null,
                 onSelectedIndexChange: (i) =>
                     setState(() => _modelId = models[i].model.id),
               ),
           ],
         ),
         SettingsGroup(
-          title: '系统提示词',
+          title: tr('系统提示词'),
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
               child: AppTextField(
                 controller: _prompt,
-                label: '例如：你是一名专业的中英翻译……',
+                label: tr('例如：你是一名专业的中英翻译……'),
                 useLabelAsPlaceholder: true,
                 minLines: 4,
                 maxLines: 14,
@@ -218,23 +233,23 @@ class _AgentEditPageState extends ConsumerState<AgentEditPage> {
           ],
         ),
         SettingsGroup(
-          title: '参数（留空使用模型默认值）',
+          title: tr('参数（留空使用模型默认值）'),
           children: [
             SettingsField(
               controller: _temperature,
-              label: '温度 (0~2)',
+              label: tr('温度 (0~2)'),
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
             ),
             SettingsField(
               controller: _maxTokens,
-              label: '最大输出 tokens',
+              label: tr('最大输出 tokens'),
               keyboardType: TextInputType.number,
             ),
             MiuixOverlayDropdownPreference(
-              title: '推理强度',
-              summary: '仅对带「推理」标签的模型生效',
+              title: tr('推理强度'),
+              summary: tr('仅对带「推理」标签的模型生效'),
               items: [for (final r in ReasoningEffort.values) r.label],
               selectedIndex: ReasoningEffort.values.indexOf(_reasoning),
               onSelectedIndexChange: (i) =>
@@ -246,7 +261,7 @@ class _AgentEditPageState extends ConsumerState<AgentEditPage> {
           SettingsGroup(
             children: [
               MiuixBasicComponent(
-                title: '删除助手',
+                title: tr('删除助手'),
                 titleColor: MiuixBasicComponentColors(
                   color: colors.error,
                   disabledColor: colors.disabledOnSurface,

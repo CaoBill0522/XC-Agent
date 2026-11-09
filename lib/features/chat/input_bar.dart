@@ -23,6 +23,7 @@ import '../../data/db/app_database.dart';
 import '../settings/prompts_page.dart';
 import 'follow_up.dart';
 import 'voice_input.dart';
+import '../../l10n/tr.dart';
 
 /// 输入栏的控制器：外部（拖拽、粘贴）也能往里加图片；追问时设置引用片段 /
 /// 前文总结（显示在输入框上方，发送时一起带上）。
@@ -115,10 +116,10 @@ class InputBarController extends ChangeNotifier {
   /// 加入附件；不支持的类型或过大时返回错误提示，成功返回 null。
   String? addFile(Uint8List bytes, String name) {
     final kind = attachmentKind(name, bytes);
-    if (kind == null) return '不支持「$name」这种文件（支持 PDF、文本和代码文件）';
+    if (kind == null) return trArgs('不支持「{0}」这种文件（支持 PDF、文本和代码文件）', [name]);
     final limit = kind == AttachmentKind.pdf ? maxPdfBytes : maxTextFileBytes;
     if (bytes.length > limit) {
-      return '「$name」太大了（上限 ${formatBytes(limit)}）';
+      return trArgs('「{0}」太大了（上限 {1}）', [name, formatBytes(limit)]);
     }
     files.add(
       PendingFile(
@@ -248,29 +249,29 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       context,
       actions: [
         SheetAction(
-          mobile ? '从相册选择' : '选择图片',
+          mobile ? tr('从相册选择') : tr('选择图片'),
           fromGallery,
           icon: AppIcons.image,
         ),
         if (mobile)
-          SheetAction('拍照', () async {
+          SheetAction(tr('拍照'), () async {
             final f = await picker.pickImage(source: ImageSource.camera);
             if (f != null) {
               await widget.controller.addImageBytes(await f.readAsBytes());
             }
           }, icon: AppIcons.photos),
-        SheetAction('选择文件（PDF、文本、代码）', _pickFiles, icon: AppIcons.file),
+        SheetAction(tr('选择文件（PDF、文本、代码）'), _pickFiles, icon: AppIcons.file),
       ],
     );
   }
 
   Future<void> _pickRatio(ConversationOptions options) => showActionSheet(
     context,
-    title: '画幅',
+    title: tr('画幅'),
     actions: [
       for (final (id, label) in ConversationOptions.imageRatios)
         SheetAction(
-          id == options.imageRatio ? '$label  ✓' : label,
+          id == options.imageRatio ? '${tr(label)}  ✓' : tr(label),
           () => ref
               .read(chatServiceProvider)
               .setOptions(
@@ -306,11 +307,11 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       return;
     }
     if (!widget.hasParticipants) {
-      widget.onError('请先选择对话方式');
+      widget.onError(tr('请先选择对话方式'));
       return;
     }
     if (c.summary?.loading ?? false) {
-      widget.onError('前文总结还在生成，请稍候');
+      widget.onError(tr('前文总结还在生成，请稍候'));
       return;
     }
     final quote = c.quote;
@@ -507,13 +508,13 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                             : colors.onSurfaceVariantActions,
                         onPressed: () {
                           if (!widget.webSearchSupported) {
-                            widget.onError('当前模型 / 渠道不支持原生联网搜索');
+                            widget.onError(tr('当前模型 / 渠道不支持原生联网搜索'));
                             return;
                           }
                           ref
                               .read(chatServiceProvider)
                               .setWebSearch(widget.conversationId, !webOn);
-                          widget.onError(webOn ? '已关闭联网搜索' : '已开启联网搜索');
+                          widget.onError(webOn ? tr('已关闭联网搜索') : tr('已开启联网搜索'));
                         },
                       ),
                     const SizedBox(width: 6),
@@ -524,10 +525,10 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                             controller: _text,
                             focusNode: _focus,
                             label: c.quote != null || c.summary != null
-                                ? '继续追问…'
+                                ? tr('继续追问…')
                                 : _focus.hasFocus
-                                ? '输入消息'
-                                : '输入消息，或按住说话',
+                                ? tr('输入消息')
+                                : tr('输入消息，或按住说话'),
                             useLabelAsPlaceholder: true,
                             minLines: 1,
                             maxLines: 6,
@@ -739,13 +740,13 @@ class PromptPanel extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.all(14),
               child: MiuixText(
-                '没有匹配的提示词',
+                tr('没有匹配的提示词'),
                 fontSize: 13,
                 color: colors.onSurfaceVariantSummary,
               ),
             ),
           row(
-            '管理提示词…',
+            tr('管理提示词…'),
             null,
             () => Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const PromptsPage())),

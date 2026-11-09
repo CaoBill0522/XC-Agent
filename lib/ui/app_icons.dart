@@ -62,6 +62,7 @@ class AppIcons {
   static MiuixVectorIcon get cloud => _ext('cloudFill');
   static MiuixVectorIcon get play => _ext('play');
   static MiuixVectorIcon get tools => _ext('gridView');
+  static MiuixVectorIcon get translate => _ext('translate');
   static MiuixVectorIcon get search => MiuixIcons.basic.search;
   static MiuixVectorIcon get sidebar => MiuixIcons.basic.sidebar;
 }

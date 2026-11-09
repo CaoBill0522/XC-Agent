@@ -9,6 +9,7 @@ import '../core/tools/calculator.dart';
 import '../core/tools/mcp_client.dart';
 import 'ids.dart';
 import 'secure/key_store.dart';
+import '../l10n/tr.dart';
 
 /// ChatService 用的工具来源。
 abstract class ToolProvider {
@@ -32,23 +33,26 @@ class NoTools implements ToolProvider {
       ToolResult(
         callId: call.id,
         name: call.name,
-        content: '工具不可用',
+        content: tr('工具不可用'),
         isError: true,
       );
 }
 
 /// 内置工具：都在本机执行，iOS 上也能用。
 enum BuiltinTool {
+  // 描述是写给模型看的，统一用英文（模型对英文工具说明理解最好）；
+  // 名称 [label] 是界面文字，显示时翻译。
   fetchUrl(
     'fetch_url',
     '读取网页',
-    '打开一个网址，返回网页的标题和正文文字。用于查看用户给的链接、或需要读取某个网页的具体内容时。',
+    'Open a URL and return the page title and main text. Use it to read a '
+        'link the user gave, or when you need the actual content of a web page.',
     {
       'type': 'object',
       'properties': {
         'url': {
           'type': 'string',
-          'description': '完整网址，以 http:// 或 https:// 开头',
+          'description': 'Full URL starting with http:// or https://',
         },
       },
       'required': ['url'],
@@ -57,27 +61,38 @@ enum BuiltinTool {
   time(
     'get_current_time',
     '当前时间',
-    '获取用户设备上的当前日期、时间、星期和时区。涉及「今天」「现在」「几号」等问题时使用。',
+    "Get the current date, time, weekday and time zone on the user's device. "
+        'Use it for questions about today, now, or dates.',
     {'type': 'object', 'properties': <String, dynamic>{}},
   ),
   calculator(
     'calculate',
     '计算器',
-    '精确计算数学表达式。支持 + - * / % ^ !、括号，以及 sqrt abs sin cos tan '
-        'asin acos atan ln log log2 exp floor ceil round pow min max 和常量 pi e。'
-        '三角函数用弧度。需要精确数值结果时使用，不要心算。',
+    'Evaluate a math expression exactly. Supports + - * / % ^ !, parentheses, '
+        'sqrt abs sin cos tan asin acos atan ln log log2 exp floor ceil round '
+        'pow min max and the constants pi and e (radians). Use it whenever an '
+        'exact numeric result is needed instead of mental arithmetic.',
     {
       'type': 'object',
       'properties': {
-        'expression': {'type': 'string', 'description': '例如 (3.5+2)*sqrt(2)^3'},
+        'expression': {
+          'type': 'string',
+          'description': 'For example (3.5+2)*sqrt(2)^3',
+        },
       },
       'required': ['expression'],
     },
   );
 
-  const BuiltinTool(this.id, this.label, this.description, this.parameters);
+  const BuiltinTool(this.id, this._label, this.description, this.parameters);
   final String id;
-  final String label;
+  final String _label;
+
+  /// 界面上的名称（随语言）。
+  String get label => tr(_label);
+
+  /// 中文原名：存进消息的工具调用记录里，显示时再翻译。
+  String get labelZh => _label;
   final String description;
   final Map<String, dynamic> parameters;
 
@@ -266,7 +281,7 @@ class ToolService implements ToolProvider {
 
   @override
   String labelOf(String name) =>
-      BuiltinTool.byId(name)?.label ?? _labels[name] ?? name;
+      BuiltinTool.byId(name)?.labelZh ?? _labels[name] ?? name;
 
   @override
   Future<ToolResult> run(ToolCall call, {CancelToken? cancel}) async {
@@ -292,30 +307,39 @@ class ToolService implements ToolProvider {
       final target = _mcpNames[call.name];
       final server = servers.where((s) => s.id == target?.$1).firstOrNull;
       if (target == null || server == null) {
-        return done('没有名为 ${call.name} 的工具', error: true);
+        return done(trArgs('没有名为 {0} 的工具', [call.name]), error: true);
       }
       final (text, isError) = await (await _client(server))
           .callTool(target.$2, args, cancel: cancel);
-      return done(text.isEmpty ? '（没有返回内容）' : text, error: isError);
+      return done(text.isEmpty ? tr('（没有返回内容）') : text, error: isError);
     } on FormatException catch (e) {
-      return done('计算失败：${e.message}', error: true);
+      return done(trArgs('计算失败：{0}', [e.message]), error: true);
     } on McpException catch (e) {
       return done(e.message, error: true);
     } on DioException catch (e) {
-      return done('请求失败：${e.message ?? e.type.name}', error: true);
+      return done(trArgs('请求失败：{0}', [e.message ?? e.type.name]), error: true);
     } catch (e) {
-      return done('执行失败：$e', error: true);
+      return done(trArgs('执行失败：{0}', [e]), error: true);
     }
   }
 
   static String _clip(String s) => s.length <= maxResultChars
       ? s
-      : '${s.substring(0, maxResultChars)}\n…（内容过长，已截断）';
+      : trArgs('{0}\n…（内容过长，已截断）', [s.substring(0, maxResultChars)]);
 
   // ──────────────── 内置工具实现
 
-  static const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+  static const _weekdays = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
 
+  /// 给模型看的当前时间（统一英文格式）。
   static String describeNow(DateTime t) {
     String two(int n) => n.toString().padLeft(2, '0');
     final off = t.timeZoneOffset;
@@ -324,7 +348,7 @@ class ToolService implements ToolProvider {
     final m = two(off.inMinutes.abs() % 60);
     return '${t.year}-${two(t.month)}-${two(t.day)} '
         '${two(t.hour)}:${two(t.minute)}:${two(t.second)} '
-        '星期${_weekdays[t.weekday - 1]}（时区 ${t.timeZoneName}，UTC$sign$h:$m）';
+        '${_weekdays[t.weekday - 1]} (time zone ${t.timeZoneName}, UTC$sign$h:$m)';
   }
 
   /// 网页最多读取的字节数。
@@ -343,7 +367,7 @@ class ToolService implements ToolProvider {
         headers: {
           'user-agent':
               'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) '
-              'AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 XC-Agent',
+              'AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 XCAgent',
           'accept': 'text/html,application/xhtml+xml,text/plain,*/*;q=0.8',
           'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
         },
@@ -358,9 +382,10 @@ class ToolService implements ToolProvider {
     final type = res.headers.value('content-type') ?? '';
     if (type.contains('html') || body.trimLeft().startsWith('<')) {
       final (title, text) = htmlToText(body);
-      return '网址：${res.realUri}\n${title.isEmpty ? '' : '标题：$title\n'}\n$text';
+      // 给模型看的结果，固定英文格式。
+      return 'URL: ${res.realUri}\n${title.isEmpty ? '' : 'Title: $title\n'}\n$text';
     }
-    return '网址：${res.realUri}\n\n$body';
+    return 'URL: ${res.realUri}\n\n$body';
   }
 }
 

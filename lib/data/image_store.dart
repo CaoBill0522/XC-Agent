@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../core/chat/chat_types.dart';
 import 'ids.dart';
+import '../l10n/tr.dart';
 
 /// 聊天图片的本地存储（用户上传 + 模型生成）。数据库里只存文件名。
 class ImageStore {
@@ -227,7 +228,12 @@ AttachmentKind? attachmentKind(String name, Uint8List bytes) {
 /// 把文本附件拼进问题里发给模型。
 String fileAsPrompt(String name, String content) {
   final fence = content.contains('```') ? '~~~~' : '```';
-  return '【附件：$name】\n$fence\n${content.trimRight()}\n$fence';
+  return trArgs('【附件：{0}】\n{1}\n{2}\n{3}', [
+    name,
+    fence,
+    content.trimRight(),
+    fence,
+  ]);
 }
 
 /// 300 → 300 B，2048 → 2.0 KB。

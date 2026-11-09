@@ -7,6 +7,7 @@ import '../../core/chat/chat_types.dart';
 import '../db/app_database.dart';
 import '../image_store.dart';
 import 'cloud_store.dart';
+import '../../l10n/tr.dart';
 
 class SyncException implements Exception {
   SyncException(this.message);
@@ -21,7 +22,8 @@ class SyncReport {
   int deleted = 0;
 
   @override
-  String toString() => '收到 $pulled 项，上传 $pushed 项，删除 $deleted 项';
+  String toString() =>
+      trArgs('收到 {0} 项，上传 {1} 项，删除 {2} 项', [pulled, pushed, deleted]);
 }
 
 /// 一张同步表：表名、drift 表、把 JSON 行写入（存在则更新）。
@@ -117,7 +119,7 @@ class SyncEngine {
   Future<SyncReport> sync() async {
     if (!await _cloud.available()) {
       throw SyncException(
-        'iCloud 不可用：请确认已登录 iCloud，并在系统设置里为本 App 打开 iCloud 云盘',
+        tr('iCloud 不可用：请确认已登录 iCloud，并在系统设置里为本 App 打开 iCloud 云盘'),
       );
     }
     final report = SyncReport();
@@ -250,7 +252,7 @@ class SyncEngine {
         continue;
       }
       if ((j['v'] as num? ?? 0) > formatVersion) {
-        throw SyncException('其它设备上的 App 版本更新，请先把这台设备的 App 升级到最新版');
+        throw SyncException(tr('其它设备上的 App 版本更新，请先把这台设备的 App 升级到最新版'));
       }
       (j['records'] as Map? ?? const {}).forEach((k, v) {
         if (v is num) offer(k as String, _Version(v.toInt()));

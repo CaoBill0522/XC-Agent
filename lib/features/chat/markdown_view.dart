@@ -11,6 +11,7 @@ import '../../core/api/adapters/adapter.dart';
 import '../../ui/app_icons.dart';
 import '../../ui/links.dart';
 import 'code_preview.dart';
+import '../../l10n/tr.dart';
 
 /// 模型回答的 Markdown 渲染：代码块（可复制）、LaTeX、链接、data: 图片。
 class MarkdownView extends StatelessWidget {
@@ -177,7 +178,11 @@ class CodeBlock extends StatelessWidget {
                             tint: colors.primary,
                           ),
                           const SizedBox(width: 4),
-                          MiuixText('预览', fontSize: 12, color: colors.primary),
+                          MiuixText(
+                            tr('预览'),
+                            fontSize: 12,
+                            color: colors.primary,
+                          ),
                         ],
                       ),
                     ),

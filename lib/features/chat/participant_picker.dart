@@ -13,6 +13,7 @@ import '../../ui/app_icons.dart';
 import '../../ui/motion.dart';
 import '../../ui/settings_widgets.dart';
 import '../channels/channels_page.dart';
+import '../../l10n/tr.dart';
 
 /// 选择会话的模式与模型 / 助手。
 /// - 单模型：点一下立即生效；
@@ -54,7 +55,7 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
   Future<void> _apply(List<Participant> list) async {
     if (_applying) return;
     if (_mode.isGroup && list.length < 2) {
-      _snackbar.showSnackbar('${_mode.label}至少需要选择 2 个');
+      _snackbar.showSnackbar(trArgs('{0}至少需要选择 2 个', [_mode.label]));
       return;
     }
     _applying = true;
@@ -144,20 +145,20 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
               onChanged: (_) => _tap(p),
             )
           else if (index >= 0)
-            MiuixText('当前', fontSize: 13, color: colors.primary),
+            MiuixText(tr('当前'), fontSize: 13, color: colors.primary),
         ],
         onClick: enabled ? () => _tap(p) : null,
       );
     }
 
     return SettingsScaffold(
-      title: '对话设置',
+      title: tr('对话设置'),
       snackbar: _snackbar,
       bottomBar: _mode.isGroup
           ? PrimaryButton(
               text: chain && !debate
-                  ? '确定（${selected.length} 步）'
-                  : '确定（已选 ${selected.length} 个）',
+                  ? trArgs('确定（{0} 步）', [selected.length])
+                  : trArgs('确定（已选 {0} 个）', [selected.length]),
               enabled: selected.length >= 2,
               onPressed: () => _apply(List.of(selected)),
             )
@@ -166,7 +167,7 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
         SettingsGroup(
           children: [
             MiuixOverlayDropdownPreference(
-              title: '模式',
+              title: tr('模式'),
               summary: _mode.description,
               items: [for (final m in ConversationMode.values) m.label],
               selectedIndex: ConversationMode.values.indexOf(_mode),
@@ -189,12 +190,12 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
               : SettingsGroup(
                   children: [
                     MiuixOverlayDropdownPreference(
-                      title: debate ? '总结者' : '裁判',
+                      title: debate ? tr('总结者') : tr('裁判'),
                       summary: debate
-                          ? '辩论结束后梳理各方观点并给出结论'
-                          : '对比各个回答、打分，并给出综合答案',
+                          ? tr('辩论结束后梳理各方观点并给出结论')
+                          : tr('对比各个回答、打分，并给出综合答案'),
                       items: [
-                        debate ? '第一位辩手' : '第一个回答者',
+                        debate ? tr('第一位辩手') : tr('第一个回答者'),
                         for (final p in judgeCandidates) label(p),
                       ],
                       selectedIndex: judgeIndex < 0 ? 0 : judgeIndex,
@@ -206,11 +207,11 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
                     ),
                     if (debate)
                       MiuixOverlayDropdownPreference(
-                        title: '辩论轮数',
-                        summary: '每轮每位辩手各发言一次',
+                        title: tr('辩论轮数'),
+                        summary: tr('每轮每位辩手各发言一次'),
                         items: [
                           for (final r in ConversationOptions.roundChoices)
-                            '$r 轮',
+                            trArgs('{0} 轮', [r]),
                         ],
                         selectedIndex: ConversationOptions.roundChoices
                             .indexOf(_options.rounds)
@@ -233,19 +234,21 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
               ? const SizedBox(width: double.infinity)
               : SettingsGroup(
                   title: debate
-                      ? '发言顺序（每轮按这个顺序发言）'
-                      : '执行顺序（第 1 步收到原始问题，之后每步收到原始问题 + 上一步结果）',
+                      ? tr('发言顺序（每轮按这个顺序发言）')
+                      : tr('执行顺序（第 1 步收到原始问题，之后每步收到原始问题 + 上一步结果）'),
                   children: [
                     for (final (i, p) in selected.indexed)
                       MiuixBasicComponent(
                         title: label(p),
                         summary: debate
-                            ? (i == 0 ? '先发言' : '第 ${i + 1} 个发言')
+                            ? (i == 0
+                                  ? tr('先发言')
+                                  : trArgs('第 {0} 个发言', [i + 1]))
                             : i == 0
-                            ? '分析原始问题'
+                            ? tr('分析原始问题')
                             : i == selected.length - 1
-                            ? '给出最终结论'
-                            : '在上一步基础上继续分析',
+                            ? tr('给出最终结论')
+                            : tr('在上一步基础上继续分析'),
                         startAction: Padding(
                           padding: const EdgeInsets.only(right: 12),
                           child: _OrderBadge(i + 1),
@@ -270,8 +273,8 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
           SettingsGroup(
             children: [
               MiuixArrowPreference(
-                title: '还没有可用的模型',
-                summary: '先添加渠道并拉取模型',
+                title: tr('还没有可用的模型'),
+                summary: tr('先添加渠道并拉取模型'),
                 onClick: () => Navigator.of(
                   context,
                 ).push(MaterialPageRoute(builder: (_) => const ChannelsPage())),
@@ -280,20 +283,20 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
           ),
         if (agents.isNotEmpty)
           SettingsGroup(
-            title: '助手',
+            title: tr('助手'),
             children: [
               for (final a in agents)
                 item(
                   Participant(modelId: a.modelId ?? '', agentId: a.id),
                   a.name,
                   a.modelId == null
-                      ? '未设置模型'
+                      ? tr('未设置模型')
                       : models
                                 .where((m) => m.model.id == a.modelId)
                                 .firstOrNull
                                 ?.model
                                 .displayName ??
-                            '模型不可用',
+                            tr('模型不可用'),
                   enabled:
                       a.modelId != null &&
                       models.any((m) => m.model.id == a.modelId),
@@ -302,14 +305,14 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
           ),
         if (models.isNotEmpty)
           SettingsGroup(
-            title: '模型',
+            title: tr('模型'),
             children: [
               for (final m in models)
                 item(
                   Participant(modelId: m.model.id),
                   m.model.displayName,
                   m.routes.length > 1
-                      ? '${m.routes.length} 个渠道轮询'
+                      ? trArgs('{0} 个渠道轮询', [m.routes.length])
                       : m.routes.first.channel.name,
                 ),
             ],
@@ -318,7 +321,7 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
           Padding(
             padding: const EdgeInsets.fromLTRB(28, 4, 28, 0),
             child: MiuixText(
-              '提示：给每一步配一个带系统提示词的「助手」（如「初稿」「审校」「总结」），接力效果更好。',
+              tr('提示：给每一步配一个带系统提示词的「助手」（如「初稿」「审校」「总结」），接力效果更好。'),
               fontSize: 12,
               color: colors.onSurfaceVariantSummary,
             ),
@@ -387,7 +390,7 @@ class _ContextSettingsState extends ConsumerState<_ContextSettings> {
           .read(chatServiceProvider)
           .conversation(widget.conversationId);
       widget.onChanged(ConversationOptions.decode(conv?.optionsJson));
-      widget.onToast('已把早期对话压缩成摘要');
+      widget.onToast(tr('已把早期对话压缩成摘要'));
     } on ApiException catch (e) {
       widget.onToast(e.message);
     } finally {
@@ -401,20 +404,24 @@ class _ContextSettingsState extends ConsumerState<_ContextSettings> {
     final choices = ConversationOptions.contextChoices;
     final memory = o.memory;
     return SettingsGroup(
-      title: '上下文',
+      title: tr('上下文'),
       children: [
         FutureBuilder<int>(
           future: _tokens,
           builder: (context, snap) => MiuixBasicComponent(
-            title:
-                '下次请求约 ${snap.hasData ? formatTokens(snap.data!) : '…'} tokens',
-            summary: '按字数粗略估算，不含图片和 PDF',
+            title: trArgs('下次请求约 {0} tokens', [
+              snap.hasData ? formatTokens(snap.data!) : '…',
+            ]),
+            summary: tr('按字数粗略估算，不含图片和 PDF'),
           ),
         ),
         MiuixOverlayDropdownPreference(
-          title: '携带历史',
-          summary: '每次只把最近几轮对话发给模型，省钱也避免超出上限',
-          items: [for (final n in choices) n == null ? '全部' : '最近 $n 轮'],
+          title: tr('携带历史'),
+          summary: tr('每次只把最近几轮对话发给模型，省钱也避免超出上限'),
+          items: [
+            for (final n in choices)
+              n == null ? tr('全部') : trArgs('最近 {0} 轮', [n]),
+          ],
           selectedIndex: choices
               .indexOf(o.contextTurns)
               .clamp(0, choices.length - 1),
@@ -422,24 +429,27 @@ class _ContextSettingsState extends ConsumerState<_ContextSettings> {
               widget.onChanged(o.copyWith(contextTurns: () => choices[i])),
         ),
         MiuixSwitchPreference(
-          title: '过长时自动压缩',
-          summary:
-              '超过约 ${formatTokens(ChatService.autoCompressTokens)} tokens 时，先把早期对话总结成摘要再回答',
+          title: tr('过长时自动压缩'),
+          summary: trArgs('超过约 {0} tokens 时，先把早期对话总结成摘要再回答', [
+            formatTokens(ChatService.autoCompressTokens),
+          ]),
           value: o.autoCompress,
           onChanged: (v) => widget.onChanged(o.copyWith(autoCompress: v)),
         ),
         MiuixArrowPreference(
-          title: _busy ? '正在压缩…' : '立即压缩早期对话',
+          title: _busy ? tr('正在压缩…') : tr('立即压缩早期对话'),
           summary: memory == null
-              ? '保留最近 ${ChatService.keepRecentTurns} 轮原文，之前的内容总结成摘要'
-              : '已有摘要（约 ${formatTokens(estimateTokens(memory.summary))} tokens），再次压缩会合并进去',
+              ? trArgs('保留最近 {0} 轮原文，之前的内容总结成摘要', [ChatService.keepRecentTurns])
+              : trArgs('已有摘要（约 {0} tokens），再次压缩会合并进去', [
+                  formatTokens(estimateTokens(memory.summary)),
+                ]),
           enabled: !_busy,
           onClick: _busy ? null : _compress,
         ),
         if (memory != null)
           MiuixArrowPreference(
-            title: '清除摘要',
-            summary: '恢复按原文发送全部历史',
+            title: tr('清除摘要'),
+            summary: tr('恢复按原文发送全部历史'),
             onClick: () async {
               await ref
                   .read(chatServiceProvider)

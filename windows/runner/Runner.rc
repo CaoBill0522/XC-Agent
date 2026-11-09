@@ -90,7 +90,7 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "cn.oxoz" "\0"
-            VALUE "FileDescription", "Agent" "\0"
+            VALUE "FileDescription", "XCAgent" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "agent" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 cn.oxoz. All rights reserved." "\0"
