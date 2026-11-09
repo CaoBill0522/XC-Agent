@@ -10,7 +10,9 @@ import '../../ui/layout.dart';
 import '../../ui/motion.dart';
 import '../chat/chat_page.dart';
 import '../conversations/conversation_list.dart';
+import '../chat/follow_up.dart';
 import '../search/search_page.dart';
+import 'quick_entry.dart';
 import '../settings/settings_page.dart';
 import '../../ui/top_bar_text.dart';
 
@@ -20,7 +22,9 @@ class HomeShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return isWideLayout(context) ? const _WideLayout() : const _NarrowHome();
+    return QuickEntryHost(
+      child: isWideLayout(context) ? const _WideLayout() : const _NarrowHome(),
+    );
   }
 }
 
@@ -41,9 +45,24 @@ class _NarrowHomeState extends ConsumerState<_NarrowHome> {
         .push(MaterialPageRoute(builder: (_) => ChatPage(conversationId: id)));
   }
 
+  Future<void> _onEntry(QuickEntry e) async {
+    ref.read(quickEntryProvider.notifier).clear();
+    // 回到首页再打开，不在别的页面上越叠越深。
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    switch (e) {
+      case NewChatEntry(:final text):
+        _openChat(await createQuickConversation(ref, text));
+      case SearchEntry():
+        Navigator.of(context).push(appRoute(SearchPage(onOpen: _openChat)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
+    ref.listen(quickEntryProvider, (_, e) {
+      if (e != null) _onEntry(e);
+    });
     return MiuixScaffold(
       topBar: TopBarTextFix(
         child: MiuixTopAppBar(
@@ -90,6 +109,15 @@ class _NarrowHomeState extends ConsumerState<_NarrowHome> {
       ),
     );
   }
+}
+
+/// 快捷入口新建对话：[text] 预先填进输入框。
+Future<String> createQuickConversation(WidgetRef ref, String? text) async {
+  final id = await createConversation(ref);
+  if (text != null && text.trim().isNotEmpty) {
+    ref.read(pendingDraftsProvider).put(id, PendingDraft(text: text.trim()));
+  }
+  return id;
 }
 
 /// 右下角悬浮按钮：到屏幕右边和底边的距离相等。
@@ -143,15 +171,38 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
     setState(() => _pane = _Pane.settings);
   }
 
-  Future<void> _newChat() async {
+  Future<void> _newChat([String? text]) async {
     final seq = ++_navSeq;
-    final id = await createConversation(ref);
+    final id = await createQuickConversation(ref, text);
     if (mounted && seq == _navSeq) _showChat(id);
+  }
+
+  void _onEntry(QuickEntry e) {
+    ref.read(quickEntryProvider.notifier).clear();
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    switch (e) {
+      case NewChatEntry(:final text):
+        _newChat(text);
+      case SearchEntry():
+        Navigator.of(context).push(
+          appRoute(
+            SearchPage(
+              onOpen: (id) {
+                Navigator.of(context).pop();
+                _showChat(id);
+              },
+            ),
+          ),
+        );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = MiuixTheme.of(context);
+    ref.listen(quickEntryProvider, (_, e) {
+      if (e != null) _onEntry(e);
+    });
     final conversations = ref.watch(conversationsProvider).value;
     var selectedId = ref.watch(selectedConversationProvider);
     // 选中的会话已被删除时回到空白页。

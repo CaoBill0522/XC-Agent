@@ -10,7 +10,30 @@ class ConversationOptions {
     this.contextTurns,
     this.autoCompress = false,
     this.memory,
+    this.imageRatio,
   });
+
+  /// 生图画幅：1:1 / 3:2 / 2:3，null = 模型默认。
+  final String? imageRatio;
+
+  static const imageRatios = [
+    (null, '默认'),
+    ('1:1', '方形 1:1'),
+    ('3:2', '横向 3:2'),
+    ('2:3', '纵向 2:3'),
+  ];
+
+  /// 画幅对应的尺寸参数。DALL·E 3 只接受 1792 的长边，其它（gpt-image 及中转站
+  /// 常见模型）用 1536。
+  static String? imageSizeFor(String? ratio, String model) {
+    final dalle3 = model.toLowerCase().contains('dall-e-3');
+    return switch (ratio) {
+      '1:1' => '1024x1024',
+      '3:2' => dalle3 ? '1792x1024' : '1536x1024',
+      '2:3' => dalle3 ? '1024x1792' : '1024x1536',
+      _ => null,
+    };
+  }
 
   /// 裁判模式的裁判；辩论模式的总结者（为空时由第一位辩手总结）。
   final Participant? judge;
@@ -36,7 +59,9 @@ class ConversationOptions {
     int? Function()? contextTurns,
     bool? autoCompress,
     ContextMemory? Function()? memory,
+    String? Function()? imageRatio,
   }) => ConversationOptions(
+    imageRatio: imageRatio == null ? this.imageRatio : imageRatio(),
     judge: judge == null ? this.judge : judge(),
     rounds: rounds ?? this.rounds,
     contextTurns: contextTurns == null ? this.contextTurns : contextTurns(),
@@ -50,6 +75,7 @@ class ConversationOptions {
     'contextTurns': ?contextTurns,
     if (autoCompress) 'autoCompress': true,
     if (memory != null) 'memory': memory!.toJson(),
+    'imageRatio': ?imageRatio,
   };
 
   String encode() => jsonEncode(toJson());
@@ -67,6 +93,7 @@ class ConversationOptions {
         memory: j['memory'] is Map<String, dynamic>
             ? ContextMemory.fromJson(j['memory'] as Map<String, dynamic>)
             : null,
+        imageRatio: j['imageRatio'] as String?,
       );
     } catch (_) {
       return const ConversationOptions();

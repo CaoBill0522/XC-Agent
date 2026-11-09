@@ -3,13 +3,16 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  app_links
   desktop_drop
   dynamic_color
   file_selector_windows
   flutter_secure_storage_windows
   gal
+  local_auth_windows
   pasteboard
   share_plus
+  speech_to_text_windows
   url_launcher_windows
 )
 

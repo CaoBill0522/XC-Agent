@@ -5,7 +5,9 @@ import 'package:flutter_miuix/miuix.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/appearance.dart';
+import 'data/providers.dart';
 import 'features/home/home_shell.dart';
+import 'features/lock/app_lock.dart';
 import 'ui/animated_miuix_theme.dart';
 
 class AgentApp extends ConsumerWidget {
@@ -14,6 +16,8 @@ class AgentApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appearance = ref.watch(appearanceProvider);
+    // iCloud 同步（开关打开时）随 App 启动。
+    ref.read(syncServiceProvider).start();
     return MiuixThemeController(
       colorSchemeMode: appearance.schemeMode,
       keyColor: appearance.monet ? appearance.seed : null,
@@ -51,7 +55,8 @@ class AgentApp extends ConsumerWidget {
               ),
             ),
             // 切换深色模式 / 主题色时 miuix 配色平滑过渡。
-            builder: (context, child) => AnimatedMiuixTheme(child: child!),
+            builder: (context, child) =>
+                AnimatedMiuixTheme(child: AppLockGate(child: child!)),
             home: const HomeShell(),
           );
         },

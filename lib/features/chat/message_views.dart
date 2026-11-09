@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -326,6 +327,7 @@ class AssistantMessage extends ConsumerWidget {
               text: parts.thinking,
               streaming: active && parts.text.isEmpty,
             ),
+          for (final t in parts.toolCalls) ToolCallBlock(call: t),
           if (parts.images.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
@@ -355,7 +357,10 @@ class AssistantMessage extends ConsumerWidget {
                     child: MarkdownView(parts.text),
                   )
                 : MarkdownView(parts.text),
-          if (active && parts.text.isEmpty && parts.thinking.isEmpty)
+          if (active &&
+              parts.text.isEmpty &&
+              parts.thinking.isEmpty &&
+              parts.toolCalls.every((t) => !t.running))
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Row(
@@ -546,6 +551,134 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
                   height: 1.5,
                   color: colors.onSurfaceVariantSummary,
                 ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 一次工具调用：标题行显示工具名和参数摘要，点开看完整参数和结果。
+class ToolCallBlock extends StatefulWidget {
+  const ToolCallBlock({super.key, required this.call});
+
+  final ToolCallPart call;
+
+  /// 参数的一句话摘要：网址只显示域名，表达式原样，其余截短的 JSON。
+  static String summary(ToolCallPart c) {
+    final args = ToolCall(
+      id: c.id,
+      name: c.name,
+      arguments: c.arguments,
+    ).argumentsMap;
+    if (args['url'] case final String url) {
+      return Uri.tryParse(url)?.host ?? url;
+    }
+    if (args['expression'] case final String e) return e;
+    if (args['query'] case final String q) return q;
+    if (args.isEmpty) return '';
+    final j = jsonEncode(args);
+    return j.length > 48 ? '${j.substring(0, 48)}…' : j;
+  }
+
+  @override
+  State<ToolCallBlock> createState() => _ToolCallBlockState();
+}
+
+class _ToolCallBlockState extends State<ToolCallBlock> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
+    final c = widget.call;
+    final sum = ToolCallBlock.summary(c);
+    final mono = TextStyle(
+      fontFamily: 'Menlo',
+      fontFamilyFallback: const ['Consolas', 'Roboto Mono', 'monospace'],
+      fontSize: 12,
+      height: 1.5,
+      color: colors.onSurfaceVariantSummary,
+    );
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: ShapeDecoration(
+        color: colors.surfaceContainer,
+        shape: const MiuixSquircleBorder(cornerRadius: 12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Tap(
+            sink: false,
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  if (c.running)
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: MiuixInfiniteProgressIndicator(),
+                    )
+                  else
+                    MiuixIcon(
+                      vector: c.isError ? AppIcons.close : AppIcons.tools,
+                      size: 14,
+                      tint: c.isError
+                          ? colors.error
+                          : colors.onSurfaceVariantSummary,
+                    ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: MiuixText(
+                      sum.isEmpty
+                          ? (c.label ?? c.name)
+                          : '${c.label ?? c.name} · $sum',
+                      fontSize: 13,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      color: colors.onSurfaceVariantSummary,
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _expanded ? -0.25 : 0.25,
+                    duration: Motion.medium,
+                    curve: Motion.curve,
+                    child: MiuixIcon(
+                      vector: AppIcons.chevron,
+                      size: 14,
+                      tint: colors.onSurfaceVariantSummary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AppExpand(
+            expanded: _expanded,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (c.arguments.trim().isNotEmpty &&
+                      c.arguments.trim() != '{}') ...[
+                    MiuixText('参数', fontSize: 12, color: colors.primary),
+                    SelectableText(c.arguments, style: mono),
+                    const SizedBox(height: 6),
+                  ],
+                  MiuixText('结果', fontSize: 12, color: colors.primary),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 280),
+                    child: SingleChildScrollView(
+                      child: SelectableText(c.result ?? '执行中…', style: mono),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

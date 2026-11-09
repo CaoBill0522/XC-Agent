@@ -16,7 +16,11 @@ class AnimatedKeyedList<T> extends StatefulWidget {
     this.padding,
     this.controller,
     this.physics,
+    this.header,
   });
+
+  /// 列表顶部、随列表滚动的固定内容（不参与增删动画）。
+  final Widget? header;
 
   final List<T> items;
   final Object Function(T item) keyOf;
@@ -31,7 +35,7 @@ class AnimatedKeyedList<T> extends StatefulWidget {
 }
 
 class _AnimatedKeyedListState<T> extends State<AnimatedKeyedList<T>> {
-  final _listKey = GlobalKey<AnimatedListState>();
+  final _listKey = GlobalKey<SliverAnimatedListState>();
   late List<T> _items = List.of(widget.items);
 
   @override
@@ -80,22 +84,33 @@ class _AnimatedKeyedListState<T> extends State<AnimatedKeyedList<T>> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedList(
-      key: _listKey,
+    return CustomScrollView(
       reverse: widget.reverse,
-      padding: widget.padding,
       controller: widget.controller,
       physics: widget.physics,
-      initialItemCount: _items.length,
-      itemBuilder: (context, index, anim) {
-        final item = _items[index];
-        return _Enter(
-          key: ValueKey(widget.keyOf(item)),
-          animation: anim,
-          axisAlignment: widget.reverse ? 1 : -1,
-          child: widget.itemBuilder(context, item),
-        );
-      },
+      slivers: [
+        SliverPadding(
+          padding: widget.padding ?? EdgeInsets.zero,
+          sliver: SliverMainAxisGroup(
+            slivers: [
+              if (widget.header case final h?) SliverToBoxAdapter(child: h),
+              SliverAnimatedList(
+                key: _listKey,
+                initialItemCount: _items.length,
+                itemBuilder: (context, index, anim) {
+                  final item = _items[index];
+                  return _Enter(
+                    key: ValueKey(widget.keyOf(item)),
+                    animation: anim,
+                    axisAlignment: widget.reverse ? 1 : -1,
+                    child: widget.itemBuilder(context, item),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

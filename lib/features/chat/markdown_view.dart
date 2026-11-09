@@ -10,6 +10,7 @@ import 'package:gpt_markdown/gpt_markdown.dart';
 import '../../core/api/adapters/adapter.dart';
 import '../../ui/app_icons.dart';
 import '../../ui/links.dart';
+import 'code_preview.dart';
 
 /// 模型回答的 Markdown 渲染：代码块（可复制）、LaTeX、链接、data: 图片。
 class MarkdownView extends StatelessWidget {
@@ -95,7 +96,7 @@ class MarkdownView extends StatelessWidget {
         // 回答里的链接与搜索来源一致：应用内浏览器打开。
         onLinkTap: (url, _) => openLink(url),
         codeBuilder: (context, name, code, closed) =>
-            CodeBlock(language: name, code: code),
+            CodeBlock(language: name, code: code, closed: closed),
         imageBuilder: (context, url, width, height) {
           if (splitDataUrl(url) case final p?) {
             return Image.memory(
@@ -121,15 +122,24 @@ class MarkdownView extends StatelessWidget {
 }
 
 class CodeBlock extends StatelessWidget {
-  const CodeBlock({super.key, required this.language, required this.code});
+  const CodeBlock({
+    super.key,
+    required this.language,
+    required this.code,
+    this.closed = true,
+  });
 
   final String language;
   final String code;
+
+  /// 代码块已经结束（流式输出时还没结束的块不显示「预览」）。
+  final bool closed;
 
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
     final dark = MiuixTheme.of(context).brightness == Brightness.dark;
+    final preview = closed ? previewKindOf(language, code) : null;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       decoration: ShapeDecoration(
@@ -150,6 +160,28 @@ class CodeBlock extends StatelessWidget {
                     color: colors.onSurfaceVariantSummary,
                   ),
                 ),
+                if (preview case final kind?)
+                  Tap(
+                    onTap: () => openCodePreview(context, kind, code),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          MiuixIcon(
+                            vector: AppIcons.play,
+                            size: 14,
+                            tint: colors.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          MiuixText('预览', fontSize: 12, color: colors.primary),
+                        ],
+                      ),
+                    ),
+                  ),
                 Tap(
                   onTap: () => Clipboard.setData(ClipboardData(text: code)),
                   child: Padding(

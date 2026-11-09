@@ -9,9 +9,12 @@ import '../../ui/settings_widgets.dart';
 import '../agents/agents_page.dart';
 import '../channels/channels_page.dart';
 import '../models/models_page.dart';
+import '../home/quick_entry.dart';
+import '../lock/app_lock.dart';
 import 'appearance_page.dart';
 import 'data_page.dart';
 import 'prompts_page.dart';
+import 'tools_page.dart';
 import 'usage_page.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -61,6 +64,12 @@ class SettingsPage extends ConsumerWidget {
               onClick: () => push(const PromptsPage()),
             ),
             MiuixArrowPreference(
+              title: '工具',
+              summary: '读取网页、计算器、MCP 服务器',
+              startAction: icon(AppIcons.tools),
+              onClick: () => push(const ToolsPage()),
+            ),
+            MiuixArrowPreference(
               title: '助手',
               summary: agents.isEmpty ? '系统提示词与参数预设' : '${agents.length} 个助手',
               startAction: icon(AppIcons.edit),
@@ -83,6 +92,8 @@ class SettingsPage extends ConsumerWidget {
               startAction: icon(AppIcons.theme),
               onClick: () => push(const AppearancePage()),
             ),
+            const AppLockPreference(),
+            if (desktopHotkeySupported) const HotkeyPreference(),
             MiuixArrowPreference(
               title: '数据',
               summary: '配置导入导出、清空对话',
@@ -100,7 +111,7 @@ class SettingsPage extends ConsumerWidget {
                     'cn.oxoz.agent\n\n'
                     '支持 OpenAI / Anthropic 格式的多模型 AI 客户端。\n'
                     '多渠道轮询 · 多 Agent 并问 · 识图与生图 · 原生联网搜索。\n\n'
-                    '所有数据只保存在本机。界面基于 flutter_miuix（Apache-2.0）。',
+                    '数据默认只保存在本机（可选 iCloud 同步）。界面基于 flutter_miuix（Apache-2.0）。',
                 content: (ctx, close) => Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: MiuixTextButton(

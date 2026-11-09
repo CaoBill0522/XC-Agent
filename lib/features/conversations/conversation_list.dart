@@ -26,15 +26,30 @@ class ConversationList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = MiuixTheme.of(context).colors;
     final conversations = ref.watch(conversationsProvider);
+    final folders = ref.watch(foldersProvider).value ?? const <Folder>[];
+    var filter = ref.watch(folderFilterProvider);
+    // 筛选的文件夹已被删除（如在别的设备上）时回到全部。
+    if (filter != null && !folders.any((f) => f.id == filter)) filter = null;
 
     return conversations.when(
       loading: () => const SizedBox.expand(),
       error: (e, _) => Center(child: MiuixText('加载失败：$e')),
-      data: (items) {
+      data: (all) {
+        final items = filter == null
+            ? all
+            : [
+                for (final c in all)
+                  if (c.folderId == filter) c,
+              ];
         // 列表始终保留（新建 / 删除时才有增删动画），空状态叠在上面淡入淡出。
         return Stack(
           children: [
             AnimatedKeyedList<Conversation>(
+              // 切换文件夹时整体换一个列表，不对每一项播放增删动画。
+              key: ValueKey(filter),
+              header: folders.isEmpty
+                  ? null
+                  : FolderBar(folders: folders, selected: filter),
               items: items,
               keyOf: (c) => c.id,
               padding: padding,
@@ -44,8 +59,8 @@ class ConversationList extends ConsumerWidget {
                 onTap: () => onOpen(c.id),
               ),
             ),
+            // 空状态只是提示，不拦截点击（文件夹筛选条还在它下面）。
             IgnorePointer(
-              ignoring: items.isNotEmpty,
               child: AnimatedOpacity(
                 opacity: items.isEmpty ? 1 : 0,
                 duration: Motion.medium,
@@ -62,7 +77,7 @@ class ConversationList extends ConsumerWidget {
                         ),
                         const SizedBox(height: 12),
                         MiuixText(
-                          '还没有对话',
+                          filter == null ? '还没有对话' : '这个文件夹还没有对话',
                           color: colors.onSurfaceVariantSummary,
                           fontSize: 14,
                         ),
@@ -105,6 +120,11 @@ class _ConversationTile extends ConsumerWidget {
           );
           if (t != null) await service.rename(c.id, t);
         }, icon: AppIcons.rename),
+        SheetAction(
+          c.folderId == null ? '移到文件夹' : '移到其他文件夹',
+          () => _moveToFolder(context, ref, c),
+          icon: AppIcons.moveFile,
+        ),
         SheetAction(
           c.pinned ? '取消置顶' : '置顶',
           () => service.setPinned(c.id, !c.pinned),
@@ -168,6 +188,157 @@ class _ConversationTile extends ConsumerWidget {
                 ),
             ],
             onClick: onTap,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _moveToFolder(
+  BuildContext context,
+  WidgetRef ref,
+  Conversation c,
+) async {
+  final service = ref.read(chatServiceProvider);
+  final folders = ref.read(foldersProvider).value ?? const <Folder>[];
+  await showActionSheet(
+    context,
+    title: '移到文件夹',
+    actions: [
+      for (final f in folders)
+        if (f.id != c.folderId)
+          SheetAction(
+            f.name,
+            () => service.moveToFolder(c.id, f.id),
+            icon: AppIcons.folder,
+          ),
+      if (c.folderId != null)
+        SheetAction(
+          '移出文件夹',
+          () => service.moveToFolder(c.id, null),
+          icon: AppIcons.messages,
+        ),
+      SheetAction('新建文件夹…', () async {
+        final name = await showTextInput(context, title: '新建文件夹');
+        if (name == null || name.trim().isEmpty) return;
+        final id = await service.createFolder(name);
+        await service.moveToFolder(c.id, id);
+      }, icon: AppIcons.addFolder),
+    ],
+  );
+}
+
+/// 会话列表顶部的文件夹筛选条：全部 + 各文件夹，长按文件夹可重命名 / 删除。
+class FolderBar extends ConsumerWidget {
+  const FolderBar({super.key, required this.folders, required this.selected});
+
+  final List<Folder> folders;
+  final String? selected;
+
+  Future<void> _actions(BuildContext context, WidgetRef ref, Folder f) {
+    final service = ref.read(chatServiceProvider);
+    return showActionSheet(
+      context,
+      title: f.name,
+      actions: [
+        SheetAction('重命名', () async {
+          final t = await showTextInput(
+            context,
+            title: '重命名文件夹',
+            initial: f.name,
+          );
+          if (t != null && t.trim().isNotEmpty) {
+            await service.renameFolder(f.id, t);
+          }
+        }, icon: AppIcons.rename),
+        SheetAction(
+          '删除文件夹',
+          () async {
+            final ok = await showConfirm(
+              context,
+              title: '删除文件夹',
+              message: '「${f.name}」里的对话会移回「全部」，不会被删除。',
+              confirmText: '删除',
+              destructive: true,
+            );
+            if (!ok) return;
+            if (ref.read(folderFilterProvider) == f.id) {
+              ref.read(folderFilterProvider.notifier).select(null);
+            }
+            await service.deleteFolder(f.id);
+          },
+          icon: AppIcons.delete,
+          destructive: true,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    void select(String? id) =>
+        ref.read(folderFilterProvider.notifier).select(id);
+    return SizedBox(
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+        children: [
+          _FolderChip(
+            label: '全部',
+            selected: selected == null,
+            onTap: () => select(null),
+          ),
+          for (final f in folders)
+            _FolderChip(
+              label: f.name,
+              selected: selected == f.id,
+              onTap: () => select(f.id),
+              onLongPress: () => _actions(context, ref, f),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FolderChip extends StatelessWidget {
+  const _FolderChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.onLongPress,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        onSecondaryTap: onLongPress,
+        child: AnimatedContainer(
+          duration: Motion.fast,
+          curve: Motion.curve,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
+          decoration: ShapeDecoration(
+            color: selected ? colors.primary : colors.surfaceContainerHigh,
+            shape: const StadiumBorder(),
+          ),
+          child: MiuixText(
+            label,
+            fontSize: 14,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            color: selected ? colors.onPrimary : colors.onSurface,
           ),
         ),
       ),

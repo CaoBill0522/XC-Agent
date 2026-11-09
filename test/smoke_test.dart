@@ -6,6 +6,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import 'package:agent/features/settings/tools_page.dart';
 import 'package:agent/core/api/protocol.dart';
 import 'package:agent/core/chat/chat_types.dart';
 import 'package:agent/core/chat/conversation_mode.dart';
@@ -160,7 +161,21 @@ Future<void> _seed() async {
     'assistant',
     [
       const ThinkingPart('想想'),
-      const TextPart(md),
+      const ToolCallPart(
+        id: 't1',
+        name: 'fetch_url',
+        label: '读取网页',
+        arguments: '{"url":"https://example.com/a"}',
+        result: '网页正文',
+      ),
+      const ToolCallPart(
+        id: 't2',
+        name: 'calculate',
+        arguments: '{}',
+        result: '计算失败',
+        isError: true,
+      ),
+      const TextPart('$md\n\n```html\n<b>hi</b>\n```'),
       const CitationPart('https://a.com', 'A'),
     ],
     group: 'g1',
@@ -191,6 +206,13 @@ Future<void> _seed() async {
     status: MsgStatus.streaming,
     t: 5,
   );
+
+  // 文件夹：首页显示筛选条。
+  await db
+      .into(db.folders)
+      .insert(FoldersCompanion.insert(id: 'f1', name: '工作'));
+  await (db.update(db.conversations)..where((c) => c.id.equals(chatConv)))
+      .write(const ConversationsCompanion(folderId: Value('f1')));
 
   multiConv = await conv(
     [Participant(modelId: modelId), Participant(modelId: reasoner)],
@@ -438,6 +460,12 @@ void main() {
     testWidgets('首页（窄屏 + 宽屏）· $b', (tester) async {
       await _open(tester, const HomeShell(), b: b);
       expect(find.text('chain'), findsOneWidget);
+      // 文件夹筛选：只剩文件夹里的对话，再切回全部。
+      await _tapText(tester, '工作');
+      expect(find.text('chain'), findsNothing);
+      expect(find.text('single'), findsOneWidget);
+      await _tapText(tester, '全部');
+      expect(find.text('chain'), findsOneWidget);
       await _open(tester, const HomeShell(), size: const Size(1200, 800), b: b);
       await _tapText(tester, 'multi');
       await _tapText(tester, '设置');
@@ -460,6 +488,17 @@ void main() {
           b: b,
         );
       }
+      // 工具调用卡片展开；HTML 代码块有「预览」。
+      await _open(tester, ChatPage(conversationId: chatConv), b: b);
+      expect(find.text('读取网页 · example.com'), findsOneWidget);
+      expect(find.text('预览'), findsOneWidget);
+      await tester.ensureVisible(find.text('读取网页 · example.com'));
+      await _settle(tester);
+      await _tapText(tester, '读取网页 · example.com');
+      expect(
+        find.byWidgetPredicate((w) => w is SelectableText && w.data == '网页正文'),
+        findsOneWidget,
+      );
       // 接力：展开第一步、切换多 Agent 标签。
       await _open(tester, ChatPage(conversationId: chainConv), b: b);
       await _tapText(tester, '完成');
@@ -834,6 +873,8 @@ void main() {
       ModelDetailPage(modelId: modelId),
       AgentEditPage(agentId: agentId),
       const AgentEditPage(),
+      const ToolsPage(),
+      const McpServerPage(),
     ]) {
       await _open(tester, page);
       await _open(tester, page, b: Brightness.dark);
@@ -843,6 +884,12 @@ void main() {
     await tester.tap(find.byType(MiuixSwitch).first);
     await _settle(tester);
     expect(find.text('主题色'), findsOneWidget);
+    // 数据：iCloud 同步分组（测试主机是 macOS）。
+    await _open(tester, const DataPage());
+    expect(find.text('通过 iCloud 同步'), findsOneWidget);
+    // 设置：应用锁开关。
+    await _open(tester, const SettingsPage());
+    expect(find.text('应用锁'), findsOneWidget);
     // 模型详情：路由策略相关项。
     await _open(tester, ModelDetailPage(modelId: modelId));
     expect(find.text('路由策略'), findsOneWidget);

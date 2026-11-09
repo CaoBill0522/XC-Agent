@@ -68,6 +68,21 @@ class H(BaseHTTPRequestHandler):
         for m in body.get('messages', body.get('input', [])):
             c = m.get('content'); last = c if isinstance(c, str) else json.dumps(c, ensure_ascii=False)[:80]
         base = ANSWER_LONG if 'long' in last else ANSWER
+        if 'html' in last:  # 代码预览
+            base = "做了一个按钮：\n\n```html\n<h2 style=\"color:#3482ff\">你好，预览</h2>\n<button onclick=\"this.textContent='点过了'\">点我</button>\n```\n\n```mermaid\ngraph TD\n  A[提问] --> B{模型}\n  B --> C[回答]\n```"
+        msgs = body.get('messages', [])
+        # 工具调用：问题里有 calc 且请求带了函数工具时，先要求调用计算器；收到工具结果后给出答案。
+        fn_tools = [t for t in body.get('tools', []) if t.get('type') == 'function']
+        if fn_tools and msgs and msgs[-1].get('role') == 'tool':
+            base = f"计算器算出来是 **{msgs[-1].get('content')}**。"
+        elif fn_tools and 'calc' in last and self.path == '/v1/chat/completions':
+            self.start_sse()
+            self.sse(json.dumps({"choices": [{"delta": {"content": "我用计算器算一下。"}}]}))
+            self.sse(json.dumps({"choices": [{"delta": {"tool_calls": [{"index": 0, "id": "call_1", "type": "function", "function": {"name": "calculate", "arguments": ""}}]}}]}))
+            for part in ['{"expression":', '"(3.5+2)*sqrt(2)^3"}']:
+                self.sse(json.dumps({"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": part}}]}}]})); time.sleep(0.1)
+            self.sse(json.dumps({"choices": [{"delta": {}, "finish_reason": "tool_calls"}]}))
+            self.sse('[DONE]'); return self.end_sse()
         answer = f"[{model} @ :{PORT}] " + base + f"\n\n> 收到：{last[:60]}"
         if 'image' in json.dumps(body.get('messages', []))[:100000] and 'image_url' in json.dumps(body.get('messages', [])):
             answer = f"[{model}] 我看到了你发的图片。" 

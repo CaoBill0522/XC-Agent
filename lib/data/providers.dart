@@ -14,6 +14,8 @@ import 'db/app_database.dart';
 import 'image_store.dart';
 import 'repositories/agent_repository.dart';
 import 'repositories/channel_repository.dart';
+import 'sync/sync_service.dart';
+import 'tool_service.dart';
 import 'secure/key_store.dart';
 
 export 'ids.dart';
@@ -31,7 +33,15 @@ final databaseProvider = Provider<AppDatabase>((ref) {
   return db;
 });
 
-final keyStoreProvider = Provider<KeyStore>((ref) => SecureKeyStore());
+final keyStoreProvider = Provider<KeyStore>(
+  (ref) => SecureKeyStore(null, () {
+    try {
+      return ref.read(prefsProvider).getBool('icloud_sync_keys') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }),
+);
 final imageStoreProvider = Provider<ImageStore>((ref) => ImageStore());
 final modelRouterProvider = Provider<ModelRouter>((ref) => ModelRouter());
 final channelClientProvider = Provider<ChannelClient>((ref) => ChannelClient());
@@ -48,8 +58,25 @@ final agentRepositoryProvider = Provider<AgentRepository>((ref) {
   return AgentRepository(ref.watch(databaseProvider));
 });
 
+final syncServiceProvider = Provider<SyncService>((ref) {
+  final s = SyncService(
+    ref.watch(databaseProvider),
+    ref.watch(imageStoreProvider),
+    () => ref.read(prefsProvider),
+    ref.watch(keyStoreProvider),
+  );
+  ref.onDispose(s.dispose);
+  return s;
+});
+
+final toolServiceProvider = Provider<ToolService>(
+  (ref) =>
+      ToolService(() => ref.read(prefsProvider), ref.watch(keyStoreProvider)),
+);
+
 final chatServiceProvider = Provider<ChatService>((ref) {
   return ChatService(
+    tools: ref.watch(toolServiceProvider),
     db: ref.watch(databaseProvider),
     channels: ref.watch(channelRepositoryProvider),
     client: ref.watch(chatClientProvider),
@@ -87,6 +114,22 @@ final conversationProvider = Provider.family<Conversation?, String>((ref, id) {
       ?.where((c) => c.id == id)
       .firstOrNull;
 });
+
+final foldersProvider = StreamProvider<List<Folder>>(
+  (ref) => ref.watch(databaseProvider).watchFolders(),
+);
+
+/// 会话列表当前筛选的文件夹，null = 全部。
+class FolderFilter extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void select(String? id) => state = id;
+}
+
+final folderFilterProvider = NotifierProvider<FolderFilter, String?>(
+  FolderFilter.new,
+);
 
 final messagesProvider = StreamProvider.family<List<Message>, String>((
   ref,
@@ -167,9 +210,10 @@ void rememberParticipants(
   return (participants: saved, mode: mode);
 }
 
-/// 新建空会话：模式和模型在聊天页里选。
-Future<String> createConversation(WidgetRef ref) =>
-    ref.read(chatServiceProvider).createConversation(const []);
+/// 新建空会话：模式和模型在聊天页里选。正在看某个文件夹时，新对话放进这个文件夹。
+Future<String> createConversation(WidgetRef ref) => ref
+    .read(chatServiceProvider)
+    .createConversation(const [], folderId: ref.read(folderFilterProvider));
 
 // ──────────────── JSON 工具
 

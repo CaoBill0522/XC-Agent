@@ -30,6 +30,11 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   share_plus: ^13.3.1
+  speech_to_text: ^7.5.0
+  local_auth: ^3.0.2
+  webview_flutter: ^4.14.1
+  quick_actions: ^1.1.1
+  app_links: ^7.2.2
 
 dev_dependencies:
   flutter_test:

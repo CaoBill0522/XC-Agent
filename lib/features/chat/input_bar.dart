@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:pasteboard/pasteboard.dart';
 
 import '../../core/api/api_error.dart';
+import '../../core/chat/conversation_options.dart';
 import '../../data/chat_service.dart';
 import '../../data/image_store.dart';
 import '../../data/providers.dart';
@@ -21,6 +22,7 @@ import '../../ui/vendor/app_text_field.dart';
 import '../../data/db/app_database.dart';
 import '../settings/prompts_page.dart';
 import 'follow_up.dart';
+import 'voice_input.dart';
 
 /// 输入栏的控制器：外部（拖拽、粘贴）也能往里加图片；追问时设置引用片段 /
 /// 前文总结（显示在输入框上方，发送时一起带上）。
@@ -32,6 +34,9 @@ class InputBarController extends ChangeNotifier {
 
   /// 新对话追问时的前文总结（可能仍在生成中）。
   SummaryJob? summary;
+
+  /// 打开对话时预先填进输入框的文字（输入栏创建时取走）。
+  String? draftText;
 
   /// 请求输入框获取焦点（「追问」后直接开始输入）。
   final focusRequests = ValueNotifier<int>(0);
@@ -147,7 +152,11 @@ class ChatInputBar extends ConsumerStatefulWidget {
     required this.webSearchSupported,
     required this.hasParticipants,
     required this.onError,
+    this.imageModel = false,
   });
+
+  /// 当前是纯生图模型：联网按钮换成画幅选择。
+  final bool imageModel;
 
   final String conversationId;
   final InputBarController controller;
@@ -170,6 +179,11 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     widget.controller.addListener(_rebuild);
     widget.controller.focusRequests.addListener(_requestFocus);
     _text.addListener(_rebuild);
+    _focus.addListener(_rebuild);
+    if (widget.controller.draftText case final t? when t.isNotEmpty) {
+      _text.text = t;
+      widget.controller.draftText = null;
+    }
   }
 
   void _requestFocus() => _focus.requestFocus();
@@ -250,6 +264,23 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     );
   }
 
+  Future<void> _pickRatio(ConversationOptions options) => showActionSheet(
+    context,
+    title: '画幅',
+    actions: [
+      for (final (id, label) in ConversationOptions.imageRatios)
+        SheetAction(
+          id == options.imageRatio ? '$label  ✓' : label,
+          () => ref
+              .read(chatServiceProvider)
+              .setOptions(
+                widget.conversationId,
+                options.copyWith(imageRatio: () => id),
+              ),
+        ),
+    ],
+  );
+
   Future<void> _pickFiles() async {
     final files = await openFiles();
     for (final f in files) {
@@ -325,6 +356,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
         : media.padding.bottom;
     final conv = ref.watch(conversationProvider(widget.conversationId));
     final webOn = conv?.webSearch ?? false;
+    final options = ConversationOptions.decode(conv?.optionsJson);
     final images = widget.controller.images;
     final c = widget.controller;
     final canSend =
@@ -457,49 +489,86 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                       tint: colors.onSurfaceVariantActions,
                       onPressed: _pick,
                     ),
-                    AppIconButton(
-                      icon: AppIcons.world,
-                      extent: control,
-                      tint: webOn && widget.webSearchSupported
-                          ? colors.primary
-                          : colors.onSurfaceVariantActions,
-                      onPressed: () {
-                        if (!widget.webSearchSupported) {
-                          widget.onError('当前模型 / 渠道不支持原生联网搜索');
-                          return;
-                        }
-                        ref
-                            .read(chatServiceProvider)
-                            .setWebSearch(widget.conversationId, !webOn);
-                        widget.onError(webOn ? '已关闭联网搜索' : '已开启联网搜索');
-                      },
-                    ),
+                    if (widget.imageModel)
+                      AppIconButton(
+                        icon: AppIcons.tune,
+                        extent: control,
+                        tint: options.imageRatio != null
+                            ? colors.primary
+                            : colors.onSurfaceVariantActions,
+                        onPressed: () => _pickRatio(options),
+                      )
+                    else
+                      AppIconButton(
+                        icon: AppIcons.world,
+                        extent: control,
+                        tint: webOn && widget.webSearchSupported
+                            ? colors.primary
+                            : colors.onSurfaceVariantActions,
+                        onPressed: () {
+                          if (!widget.webSearchSupported) {
+                            widget.onError('当前模型 / 渠道不支持原生联网搜索');
+                            return;
+                          }
+                          ref
+                              .read(chatServiceProvider)
+                              .setWebSearch(widget.conversationId, !webOn);
+                          widget.onError(webOn ? '已关闭联网搜索' : '已开启联网搜索');
+                        },
+                      ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: AppTextField(
-                        controller: _text,
-                        focusNode: _focus,
-                        label: c.quote != null || c.summary != null
-                            ? '继续追问…'
-                            : '输入消息',
-                        useLabelAsPlaceholder: true,
-                        minLines: 1,
-                        maxLines: 6,
-                        cornerRadius: control / 2,
-                        // 16 号字 × 1.375 行高 = 22，上下各 10，再加输入框自身约 2 的排版余量，单行总高 44。
-                        textStyle: TextStyle(
-                          fontSize: 16,
-                          height: 1.375,
-                          color: colors.onSurface,
-                        ),
-                        insideMargin: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        textInputAction: isDesktopPlatform
-                            ? TextInputAction.newline
-                            : TextInputAction.send,
-                        onSubmitted: (_) => _send(),
+                      child: Stack(
+                        children: [
+                          AppTextField(
+                            controller: _text,
+                            focusNode: _focus,
+                            label: c.quote != null || c.summary != null
+                                ? '继续追问…'
+                                : _focus.hasFocus
+                                ? '输入消息'
+                                : '输入消息，或按住说话',
+                            useLabelAsPlaceholder: true,
+                            minLines: 1,
+                            maxLines: 6,
+                            cornerRadius: control / 2,
+                            // 16 号字 × 1.375 行高 = 22，上下各 10，再加输入框自身约 2 的排版余量，单行总高 44。
+                            textStyle: TextStyle(
+                              fontSize: 16,
+                              height: 1.375,
+                              color: colors.onSurface,
+                            ),
+                            insideMargin: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            textInputAction: isDesktopPlatform
+                                ? TextInputAction.newline
+                                : TextInputAction.send,
+                            onSubmitted: (_) => _send(),
+                          ),
+                          // 输入框空着、没在输入时：按住说话，轻点照常输入。
+                          if (_text.text.isEmpty && !_focus.hasFocus)
+                            Positioned.fill(
+                              child: HoldToTalk(
+                                onTap: _focus.requestFocus,
+                                onError: widget.onError,
+                                onEdit: (t) {
+                                  _text.value = TextEditingValue(
+                                    text: t,
+                                    selection: TextSelection.collapsed(
+                                      offset: t.length,
+                                    ),
+                                  );
+                                  _focus.requestFocus();
+                                },
+                                onSend: (t) {
+                                  _text.text = t;
+                                  _send();
+                                },
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 8),

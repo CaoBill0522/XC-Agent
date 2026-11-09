@@ -60,11 +60,16 @@ class SummaryJob extends ChangeNotifier {
   }
 }
 
-/// 打开某个对话时要预先放进输入框上方的内容（新对话追问：引用 + 总结）。
+/// 打开某个对话时要预先放进输入栏的内容（新对话追问：引用 + 总结；快捷提问：文字）。
 class PendingDraft {
-  PendingDraft({this.quote, this.summary});
+  PendingDraft({this.quote, this.summary, this.text});
   final String? quote;
   final SummaryJob? summary;
+
+  /// 预先填进输入框的文字（快捷指令 / 分享进来的内容）。
+  final String? text;
+
+  bool get isFollowUp => quote != null || summary != null;
 }
 
 class PendingDrafts {

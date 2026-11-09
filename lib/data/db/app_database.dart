@@ -14,6 +14,8 @@ part 'app_database.g.dart';
     Conversations,
     Messages,
     Prompts,
+    Folders,
+    Tombstones,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -21,13 +23,14 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'agent'));
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
       await _seedPrompts();
+      await SyncSchema.install(this);
     },
     onUpgrade: (m, from, to) async {
       if (from < 2) await m.addColumn(models, models.matchKey);
@@ -43,6 +46,23 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(messages, messages.kind);
         await m.createTable(prompts);
         await _seedPrompts();
+      }
+      if (from < 6) {
+        await m.addColumn(channels, channels.modifiedAt);
+        await m.addColumn(models, models.modifiedAt);
+        await m.addColumn(modelRoutes, modelRoutes.modifiedAt);
+        await m.addColumn(agents, agents.modifiedAt);
+        await m.addColumn(conversations, conversations.modifiedAt);
+        await m.addColumn(prompts, prompts.modifiedAt);
+        await m.addColumn(conversations, conversations.folderId);
+        await m.createTable(folders);
+        await m.createTable(tombstones);
+        for (final t in SyncSchema.tables) {
+          await customStatement(
+            'UPDATE $t SET modified_at = ${SyncSchema.nowMs}',
+          );
+        }
+        await SyncSchema.install(this);
       }
     },
     beforeOpen: (details) async {
@@ -83,6 +103,12 @@ class AppDatabase extends _$AppDatabase {
       );
     }
   }
+
+  // ---------- 文件夹 ----------
+
+  Stream<List<Folder>> watchFolders() => (select(
+    folders,
+  )..orderBy([(f) => OrderingTerm.asc(f.sortOrder)])).watch();
 
   // ---------- 提示词 ----------
 
@@ -134,5 +160,59 @@ class AppDatabase extends _$AppDatabase {
             ..where((c) => c.id.equals(message.conversationId.value)))
           .write(ConversationsCompanion(updatedAt: Value(DateTime.now())));
     });
+  }
+}
+
+/// iCloud 同步的数据库约定：每张同步表有 modified_at（毫秒），由触发器在插入 /
+/// 修改时自动更新；删除时写入 tombstones。消息不单独同步，任何消息变化都会
+/// 刷新所属对话的 modified_at，以对话为单位同步。
+///
+/// 同步导入时显式写入远端的 modified_at：更新触发器只在 modified_at 没被改动时
+/// 才盖上当前时间，所以导入的时间戳会原样保留。
+abstract final class SyncSchema {
+  static const tables = [
+    'channels',
+    'models',
+    'model_routes',
+    'agents',
+    'conversations',
+    'prompts',
+    'folders',
+  ];
+
+  static const nowMs =
+      "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
+
+  static Future<void> install(GeneratedDatabase db) async {
+    for (final t in tables) {
+      await db.customStatement(
+        'CREATE TRIGGER IF NOT EXISTS sync_ins_$t AFTER INSERT ON $t BEGIN '
+        'UPDATE $t SET modified_at = $nowMs '
+        'WHERE id = NEW.id AND NEW.modified_at IS NULL; '
+        "DELETE FROM tombstones WHERE kind = '$t' AND id = NEW.id; END",
+      );
+      await db.customStatement(
+        'CREATE TRIGGER IF NOT EXISTS sync_upd_$t AFTER UPDATE ON $t '
+        'WHEN NEW.modified_at IS OLD.modified_at BEGIN '
+        'UPDATE $t SET modified_at = $nowMs WHERE id = NEW.id; END',
+      );
+      await db.customStatement(
+        'CREATE TRIGGER IF NOT EXISTS sync_del_$t AFTER DELETE ON $t BEGIN '
+        'INSERT OR REPLACE INTO tombstones (kind, id, deleted_at) '
+        "VALUES ('$t', OLD.id, $nowMs); END",
+      );
+    }
+    for (final (op, row) in [
+      ('INSERT', 'NEW'),
+      ('UPDATE', 'NEW'),
+      ('DELETE', 'OLD'),
+    ]) {
+      await db.customStatement(
+        'CREATE TRIGGER IF NOT EXISTS sync_msg_${op.toLowerCase()} '
+        'AFTER $op ON messages BEGIN '
+        'UPDATE conversations SET modified_at = $nowMs '
+        'WHERE id = $row.conversation_id; END',
+      );
+    }
   }
 }

@@ -15,6 +15,7 @@ import 'package:agent/data/db/app_database.dart';
 import 'package:agent/data/image_store.dart';
 import 'package:agent/data/repositories/channel_repository.dart';
 import 'package:agent/data/secure/key_store.dart';
+import 'package:agent/data/tool_service.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
@@ -76,6 +77,43 @@ String chunk(String text) => jsonEncode({
   'choices': [
     {
       'delta': {'content': text},
+    },
+  ],
+});
+
+/// 测试用工具：calculate 返回固定结果并记录调用。
+class FakeTools implements ToolProvider {
+  final calls = <ToolCall>[];
+  @override
+  Future<List<ToolSpec>> specs() async => const [
+    ToolSpec(
+      name: 'calculate',
+      description: 'calc',
+      parameters: {'type': 'object'},
+    ),
+  ];
+  @override
+  String labelOf(String name) => '计算器';
+  @override
+  Future<ToolResult> run(ToolCall call, {CancelToken? cancel}) async {
+    calls.add(call);
+    return ToolResult(callId: call.id, name: call.name, content: '42');
+  }
+}
+
+String toolCallChunk(String id, String args) => jsonEncode({
+  'choices': [
+    {
+      'delta': {
+        'tool_calls': [
+          {
+            'index': 0,
+            'id': id,
+            'function': {'name': 'calculate', 'arguments': args},
+          },
+        ],
+      },
+      'finish_reason': 'tool_calls',
     },
   ],
 });
@@ -1028,5 +1066,152 @@ void main() {
     expect(p, contains('第 2 步 · B'));
     expect(p, contains('\nR\n'));
     expect(p, contains('第 3 步'));
+  });
+
+  group('工具调用', () {
+    late FakeTools tools;
+    late ChatService withTools;
+    setUp(() {
+      tools = FakeTools();
+      withTools = ChatService(
+        db: db,
+        channels: repo,
+        client: ChatClient(Dio()..httpClientAdapter = http),
+        router: router,
+        images: ImageStore(() async => tmp),
+        tools: tools,
+      );
+    });
+
+    test('模型调用工具 → 本机执行 → 结果交回模型继续回答', () async {
+      await channel('a.com', ['m']);
+      var n = 0;
+      http.handler = (_) => n++ == 0
+          ? sse([
+              chunk('我算一下'),
+              toolCallChunk('c1', '{"expression":"6*7"}'),
+              '[DONE]',
+            ])
+          : sse([chunk('答案是 42'), '[DONE]']);
+      final conv = await withTools.createConversation([
+        Participant(modelId: await modelId('m')),
+      ]);
+      await withTools.send(conv, '6 乘 7');
+      final msgs = await settle(conv);
+      final parts = ContentPart.decodeList(msgs.last.partsJson);
+      expect(msgs.last.status, MsgStatus.done);
+      expect(parts.text, '我算一下\n\n答案是 42');
+      final call = parts.toolCalls.single;
+      expect(call.label, '计算器');
+      expect(call.result, '42');
+      expect(tools.calls.single.argumentsMap, {'expression': '6*7'});
+
+      final second = http.requests[1].data as Map;
+      final sent = second['messages'] as List;
+      expect(sent[sent.length - 2]['tool_calls'][0]['id'], 'c1');
+      expect(sent.last, {
+        'role': 'tool',
+        'tool_call_id': 'c1',
+        'content': '42',
+      });
+      expect(second['tools'], isNotEmpty);
+
+      // 下一轮提问的上下文只带最终文字，不带工具调用过程。
+      http.handler = (_) => sse([chunk('ok'), '[DONE]']);
+      await withTools.send(conv, '谢谢');
+      await settle(conv);
+      final third = (http.requests.last.data as Map)['messages'] as List;
+      expect(third.where((m) => m['role'] == 'tool'), isEmpty);
+    });
+
+    test('渠道不支持 tools 参数（400）：去掉工具重试并提示，之后不再带工具', () async {
+      await channel('a.com', ['m']);
+      http.handler = (o) => (o.data as Map).containsKey('tools')
+          ? json({
+              'error': {'message': 'unknown parameter: tools'},
+            }, 400)
+          : sse([chunk('普通回答'), '[DONE]']);
+      final conv = await withTools.createConversation([
+        Participant(modelId: await modelId('m')),
+      ]);
+      await withTools.send(conv, 'q');
+      final msgs = await settle(conv);
+      final parts = ContentPart.decodeList(msgs.last.partsJson);
+      expect(parts.text, '普通回答');
+      expect(parts.notices.single.text, ChatService.noToolsNotice);
+      expect(http.requests, hasLength(2));
+
+      await withTools.send(conv, 'q2');
+      final again = await settle(conv);
+      expect(ContentPart.decodeList(again.last.partsJson).notices, isEmpty);
+      expect((http.requests.last.data as Map).containsKey('tools'), isFalse);
+      expect(http.requests, hasLength(3));
+    });
+
+    test('工具调用轮数有上限', () async {
+      await channel('a.com', ['m']);
+      var n = 0;
+      http.handler = (_) => sse([toolCallChunk('c${n++}', '{}'), '[DONE]']);
+      final conv = await withTools.createConversation([
+        Participant(modelId: await modelId('m')),
+      ]);
+      await withTools.send(conv, 'loop');
+      final msgs = await settle(conv);
+      final parts = ContentPart.decodeList(msgs.last.partsJson);
+      expect(http.requests, hasLength(ChatService.maxToolRounds));
+      expect(parts.notices.single.text, contains('上限'));
+    });
+  });
+
+  test('文件夹：新建、移入、删除文件夹时对话移回全部；分支和追问留在原文件夹', () async {
+    await channel('a.com', ['m']);
+    final f = await chat.createFolder(' 工作 ');
+    final conv = await chat.createConversation([
+      Participant(modelId: await modelId('m')),
+    ]);
+    await chat.moveToFolder(conv, f);
+    expect((await chat.conversation(conv))!.folderId, f);
+    expect((await db.select(db.folders).get()).single.name, '工作');
+
+    await chat.send(conv, 'q');
+    final msgs = await settle(conv);
+    final branch = await chat.branchFrom(msgs.last.id);
+    expect((await chat.conversation(branch))!.folderId, f);
+    final follow = await chat.createFollowUp(msgs.last.id, 'hi');
+    expect((await chat.conversation(follow))!.folderId, f);
+
+    await chat.deleteFolder(f);
+    expect(await db.select(db.folders).get(), isEmpty);
+    expect((await chat.conversation(conv))!.folderId, isNull);
+    expect(await chat.conversation(conv), isNotNull);
+  });
+
+  test('工具 + 联网：中转站不支持 Responses 接口时，不误判为不支持工具', () async {
+    final tools = FakeTools();
+    final svc = ChatService(
+      db: db,
+      channels: repo,
+      client: ChatClient(Dio()..httpClientAdapter = http),
+      router: router,
+      images: ImageStore(() async => tmp),
+      tools: tools,
+    );
+    await channel('relay.com', ['gpt-4o']);
+    http.handler = (o) => o.uri.path.endsWith('/responses')
+        ? json({
+            'error': {'message': 'not found'},
+          }, 404)
+        : sse([chunk('ok'), '[DONE]']);
+    final conv = await svc.createConversation([
+      Participant(modelId: await modelId('gpt-4o')),
+    ]);
+    await svc.setWebSearch(conv, true);
+    await svc.send(conv, 'q');
+    final msgs = await settle(conv);
+    final parts = ContentPart.decodeList(msgs.last.partsJson);
+    expect(parts.text, 'ok');
+    expect(parts.notices.map((n) => n.text), [ChatService.noSearchNotice]);
+    // 最后走 Chat 接口时仍然带着工具。
+    expect((http.requests.last.data as Map)['tools'], isNotEmpty);
   });
 }

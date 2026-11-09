@@ -5,7 +5,7 @@
 
 - 平台：iOS / Android / macOS / Windows（手机单栏，平板和桌面自动切换为侧边栏 + 内容双栏）
 - 包名：`cn.oxoz.agent`
-- 数据只保存在本机：对话在本地 SQLite，API Key 在系统钥匙串（Keychain / Keystore / DPAPI），不经过任何第三方服务器
+- 数据默认只保存在本机：对话在本地 SQLite，API Key 在系统钥匙串（Keychain / Keystore / DPAPI），不经过任何第三方服务器；可选 iCloud 同步（存进你自己的 iCloud 云盘）
 
 ## 功能
 
@@ -42,7 +42,10 @@
 - **提示词库**：常用的提问方式存成提示词，在输入框里打 `/` 调出
 - **附件**：PDF 原样发给模型（Claude / OpenAI 原生读 PDF），文本和代码文件（txt、md、csv、json、各种源码等）把内容并入问题
 - **识图**：相册 / 拍照（手机），文件选择 / 拖拽 / 粘贴（桌面），大图自动压缩
-- **生图**：`dall-e` / `gpt-image` / `cogview` / `grok-*-image` 等走 `/images/generations`（gpt-image 带参考图时走 `/images/edits`）；对话模型直接返回的图片也会显示，可保存到相册
+- **生图**：`dall-e` / `gpt-image` / `cogview` / `grok-*-image` 等走 `/images/generations`（gpt-image 带参考图时走 `/images/edits`）；可选画幅（方形 / 横向 / 纵向）；对话模型直接返回的图片也会显示，可保存到相册
+- **语音输入**：输入框空着时按住说话（系统语音识别），松手发送，上滑到「取消」放弃、到「转文字」先放进输入框再改
+- **工具调用**：内置读取网页、当前时间、计算器，并可接入远程 MCP 服务器（Streamable HTTP，手机上也能用）；模型调用工具的参数和结果在回答里可展开查看；三种协议都支持，渠道不支持时自动按普通对话回答
+- **代码预览**：回答里的 HTML、SVG、Mermaid 代码块可以直接点「预览」渲染
 - **联网搜索**：使用厂商原生能力
   - OpenAI / xAI：Responses 接口的 `web_search` 工具；用 Chat Completions 接入的中转站，开启联网时自动改走同一地址的 Responses 接口，中转站不支持时退回普通对话并提示
   - Anthropic：服务端 `web_search` 工具
@@ -67,6 +70,10 @@
 - 动效：基于 miuix Folme 弹簧参数，列表增删、展开收起、页面切换都有过渡；接力步骤展开 / 收起时顶部保持不动
 - 数据：渠道、模型、助手配置可导出 / 导入（剪贴板，可选择是否包含 Key）；清空对话
 - 新建后什么都没做就离开的空对话会自动删除
+- **文件夹**：长按对话「移到文件夹」，首页顶部按文件夹筛选
+- **应用锁**：Face ID / 指纹 / 设备密码解锁，可设离开多久后重新锁定；切到后台时遮住内容
+- **iCloud 同步**（iPhone / iPad / Mac）：对话、文件夹、渠道、模型、助手、提示词；同一条记录两边都改过时以后改的为准；API Key 可选通过 iCloud 钥匙串同步
+- **快捷入口**：主屏图标长按「新对话 / 搜索」；Siri / 快捷指令「问 XC-Agent」；系统分享面板把文字或链接发给 XC-Agent；主屏 / 锁屏小组件；`xcagent://ask?text=…` 链接；桌面端全局快捷键 ⌥ Space（Windows 为 Alt + Space）
 
 ## 开发
 

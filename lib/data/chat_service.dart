@@ -19,6 +19,7 @@ import 'db/app_database.dart';
 import 'ids.dart';
 import 'image_store.dart';
 import 'repositories/channel_repository.dart';
+import 'tool_service.dart';
 
 /// 待发送的图片（已压缩）。
 /// 搜索结果：标题命中（[messageId] 为空）或某条消息命中。
@@ -75,7 +76,18 @@ class ChatService {
     required this._client,
     required this._router,
     required this._images,
+    this._tools = const NoTools(),
   });
+
+  final ToolProvider _tools;
+
+  /// 不支持工具调用的渠道（渠道 id|地址），本次运行内不再带工具。
+  final _noTools = <String>{};
+
+  static const noToolsNotice = '该渠道不支持工具调用，已按普通对话回答';
+
+  /// 一次回答里最多调用几轮工具。
+  static const maxToolRounds = 8;
 
   final AppDatabase _db;
   final ChannelRepository _channels;
@@ -110,6 +122,7 @@ class ChatService {
     List<Participant> participants, {
     ConversationMode? mode,
     String title = defaultTitle,
+    String? folderId,
   }) async {
     final id = newId();
     final now = DateTime.now();
@@ -121,6 +134,7 @@ class ChatService {
             title: title,
             mode: Value(_modeFor(participants, mode).id),
             participantsJson: Value(Participant.encodeList(participants)),
+            folderId: Value(folderId),
             createdAt: now,
             updatedAt: now,
           ),
@@ -128,7 +142,7 @@ class ChatService {
     return id;
   }
 
-  /// [options] 为 null 时保留原选项。写入时总是保留已有的上下文压缩摘要。
+  /// [options] 为 null 时保留原选项。写入时总是保留已有的上下文压缩摘要和画幅。
   Future<void> setParticipants(
     String convId,
     List<Participant> participants, {
@@ -140,7 +154,9 @@ class ChatService {
       final old = ConversationOptions.decode(
         (await conversation(convId))?.optionsJson,
       );
-      optionsJson = options.copyWith(memory: () => old.memory).encode();
+      optionsJson = options
+          .copyWith(memory: () => old.memory, imageRatio: () => old.imageRatio)
+          .encode();
     }
     await (_db.update(
       _db.conversations,
@@ -184,6 +200,40 @@ class ChatService {
   Future<void> setPinned(String convId, bool pinned) =>
       (_db.update(_db.conversations)..where((c) => c.id.equals(convId))).write(
         ConversationsCompanion(pinned: Value(pinned)),
+      );
+
+  // ──────────────── 文件夹
+
+  Future<String> createFolder(String name) async {
+    final id = newId();
+    final count = (await _db.select(_db.folders).get()).length;
+    await _db
+        .into(_db.folders)
+        .insert(
+          FoldersCompanion.insert(
+            id: id,
+            name: name.trim(),
+            sortOrder: Value(count),
+          ),
+        );
+    return id;
+  }
+
+  Future<void> renameFolder(String id, String name) =>
+      (_db.update(_db.folders)..where((f) => f.id.equals(id))).write(
+        FoldersCompanion(name: Value(name.trim())),
+      );
+
+  /// 删除文件夹，里面的对话移回「全部」，不会被删除。
+  Future<void> deleteFolder(String id) => _db.transaction(() async {
+    await (_db.update(_db.conversations)..where((c) => c.folderId.equals(id)))
+        .write(const ConversationsCompanion(folderId: Value(null)));
+    await (_db.delete(_db.folders)..where((f) => f.id.equals(id))).go();
+  });
+
+  Future<void> moveToFolder(String convId, String? folderId) =>
+      (_db.update(_db.conversations)..where((c) => c.id.equals(convId))).write(
+        ConversationsCompanion(folderId: Value(folderId)),
       );
 
   Future<void> deleteConversation(String convId) async {
@@ -253,6 +303,7 @@ class ChatService {
               mode: Value(conv.mode),
               participantsJson: Value(conv.participantsJson),
               webSearch: Value(conv.webSearch),
+              folderId: Value(conv.folderId),
               createdAt: now,
               updatedAt: now,
             ),
@@ -424,9 +475,11 @@ class ChatService {
   Future<String> createFollowUp(String sourceMsgId, String selection) async {
     final src = await _message(sourceMsgId);
     if (src == null || src.modelId == null) throw ApiException('原回答不存在');
-    return createConversation([
-      Participant(modelId: src.modelId!, agentId: src.agentId),
-    ], title: followUpTitle(selection));
+    return createConversation(
+      [Participant(modelId: src.modelId!, agentId: src.agentId)],
+      title: followUpTitle(selection),
+      folderId: (await conversation(src.conversationId))?.folderId,
+    );
   }
 
   /// 用回答 [sourceMsgId] 的 Agent，把它之前的对话（含这条回答）总结成新对话的背景。
@@ -944,6 +997,7 @@ class ChatService {
     required CancelToken cancel,
   }) async {
     final failures = <String>[];
+    final toolSpecs = await _tools.specs();
     for (final (i, route) in candidates.indexed) {
       final endpoint = await _channels.endpointFor(route.channel);
       final upstream = route.route.upstreamModel;
@@ -988,6 +1042,7 @@ class ChatService {
             ),
             presetId: route.channel.presetId,
             webSearch: webSearch,
+            tools: toolSpecs,
           );
           // 中转站开联网：改走同地址的 Responses 接口。已知不支持的渠道直接按普通对话。
           final viaResponses =
@@ -996,21 +1051,23 @@ class ChatService {
           final key = '${route.channel.id}|${endpoint.baseUrl}';
           if (viaResponses && _noResponsesSearch.contains(key)) {
             acc.extra.add(const NoticePart(noSearchNotice));
-            await _stream(
+            await _streamWithTools(
               msg.id,
               endpoint,
               request(webSearch: false),
               acc,
               cancel,
+              key,
             );
           } else {
             try {
-              await _stream(
+              await _streamWithTools(
                 msg.id,
                 target,
                 request(webSearch: search),
                 acc,
                 cancel,
+                key,
               );
             } on ApiException catch (e) {
               // 只有「接口 / 参数不被支持」类错误（400/404/405/415/422/501）才说明
@@ -1027,12 +1084,13 @@ class ChatService {
               acc = _Accumulator(_images)
                 ..extra.addAll(notices)
                 ..extra.add(const NoticePart(noSearchNotice));
-              await _stream(
+              await _streamWithTools(
                 msg.id,
                 endpoint,
                 request(webSearch: false),
                 acc,
                 cancel,
+                key,
               );
             }
           }
@@ -1116,6 +1174,103 @@ class ChatService {
     if (!acc.started) throw ApiException('模型没有返回任何内容');
   }
 
+  /// 流式回答，并处理工具调用：模型要求调用工具时在本机执行，把结果交回模型
+  /// 继续回答，最多 [maxToolRounds] 轮。[channelKey] 用于记住不支持工具的渠道。
+  Future<void> _streamWithTools(
+    String msgId,
+    ChannelEndpoint endpoint,
+    ChatRequest req,
+    _Accumulator acc,
+    CancelToken cancel,
+    String channelKey,
+  ) async {
+    var tools = _noTools.contains(channelKey) ? const <ToolSpec>[] : req.tools;
+    var turns = req.turns;
+    var retriedWithoutTools = false;
+    for (var round = 0; ; round++) {
+      acc.beginRound();
+      try {
+        await _stream(
+          msgId,
+          endpoint,
+          req.copyWith(turns: turns, tools: tools),
+          acc,
+          cancel,
+        );
+      } on ApiException catch (e) {
+        // 渠道不认识 tools 参数：去掉工具重试一次，并记住这个渠道。
+        if (round == 0 &&
+            tools.isNotEmpty &&
+            !acc.started &&
+            !cancel.isCancelled &&
+            _unsupported.contains(e.statusCode)) {
+          _noTools.add(channelKey);
+          tools = const [];
+          acc.extra.add(const NoticePart(noToolsNotice));
+          retriedWithoutTools = true;
+          round = -1;
+          continue;
+        }
+        // 去掉工具后照样失败：问题不在工具（如中转站不支持这个接口），撤销判断。
+        if (retriedWithoutTools && !acc.started) {
+          _noTools.remove(channelKey);
+          acc.extra.removeWhere(
+            (p) => p is NoticePart && p.text == noToolsNotice,
+          );
+        }
+        rethrow;
+      }
+      final calls = acc.roundCalls;
+      if (calls.isEmpty || tools.isEmpty) return;
+      if (round >= maxToolRounds - 1) {
+        acc.extra.add(const NoticePart('工具调用轮数达到上限，已停止'));
+        return;
+      }
+      turns = [
+        ...turns,
+        ChatTurn(
+          role: 'assistant',
+          text: acc.roundText,
+          toolCalls: calls,
+          thinking: acc.roundThinking,
+          thinkingSignature: acc.roundSignature,
+        ),
+      ];
+      for (final c in calls) {
+        acc.tools.add(
+          ToolCallPart(
+            id: c.id,
+            name: c.name,
+            label: _tools.labelOf(c.name),
+            arguments: c.arguments,
+          ),
+        );
+      }
+      await _writeStreaming(msgId, acc);
+      final results = await Future.wait([
+        for (final c in calls)
+          _tools.run(c, cancel: cancel).then((r) async {
+            acc.setToolResult(c.id, r.content, isError: r.isError);
+            await _writeStreaming(msgId, acc);
+            return r;
+          }),
+      ]);
+      if (cancel.isCancelled) throw ApiException('已停止');
+      turns = [
+        ...turns,
+        ChatTurn(role: 'tool', text: '', toolResults: results),
+      ];
+    }
+  }
+
+  Future<void> _writeStreaming(String msgId, _Accumulator acc) => _update(
+    msgId,
+    MessagesCompanion(
+      partsJson: Value(ContentPart.encodeList(acc.parts)),
+      status: const Value(MsgStatus.streaming),
+    ),
+  );
+
   Future<void> _generateImage(
     Message msg,
     ChannelEndpoint endpoint,
@@ -1133,11 +1288,14 @@ class ChatService {
       msg.id,
       const MessagesCompanion(status: Value(MsgStatus.streaming)),
     );
+    final conv = await conversation(msg.conversationId);
+    final ratio = ConversationOptions.decode(conv?.optionsJson).imageRatio;
     final result = await _client.generateImage(
       endpoint,
       model: upstream,
       prompt: last.text,
       references: last.images,
+      size: ConversationOptions.imageSizeFor(ratio, upstream),
       cancel: cancel,
     );
     for (final r in result) {
@@ -1515,10 +1673,49 @@ class _Accumulator {
   /// 非流式路径（生图）直接往这里加。
   final extra = <ContentPart>[];
 
+  /// 本次回答里调用过的工具（含结果）。
+  final tools = <ToolCallPart>[];
+
+  // 当前这一轮（一次请求）的状态，用于工具调用循环。
+  final _calls = <int, ({String? id, String? name, StringBuffer args})>{};
+  int _roundTextStart = 0;
+  int _roundThinkingStart = 0;
+  String? roundSignature;
+  bool _needSeparator = false;
+
+  void beginRound() {
+    _calls.clear();
+    roundSignature = null;
+    _roundTextStart = _text.length;
+    _roundThinkingStart = _thinking.length;
+    // 工具调用前后的两段回答之间空一行。
+    _needSeparator = _text.isNotEmpty;
+  }
+
+  String get roundText => _text.toString().substring(_roundTextStart);
+  String get roundThinking =>
+      _thinking.toString().substring(_roundThinkingStart);
+
+  List<ToolCall> get roundCalls => [
+    for (final MapEntry(key: i, value: c) in _calls.entries)
+      if (c.name case final name? when name.isNotEmpty)
+        ToolCall(
+          id: c.id ?? 'call_${tools.length}_$i',
+          name: name,
+          arguments: c.args.toString(),
+        ),
+  ];
+
+  void setToolResult(String id, String result, {bool isError = false}) {
+    final i = tools.indexWhere((t) => t.id == id && t.running);
+    if (i >= 0) tools[i] = tools[i].withResult(result, isError: isError);
+  }
+
   List<ContentPart> get parts => [
     if (_thinking.isNotEmpty) ThinkingPart(_thinking.toString()),
     ..._imageParts,
     ...extra,
+    ...tools,
     if (_text.isNotEmpty) TextPart(_text.toString()),
     ..._citations.values,
   ];
@@ -1530,8 +1727,27 @@ class _Accumulator {
   Future<void> add(ChatEvent e) async {
     switch (e) {
       case TextDelta(:final text):
+        if (_needSeparator && text.trim().isNotEmpty) {
+          _text.write('\n\n');
+          _needSeparator = false;
+        }
         _text.write(text);
         started = true;
+      case ToolCallDelta(
+        :final index,
+        :final id,
+        :final name,
+        :final arguments,
+      ):
+        final c = _calls[index];
+        _calls[index] = (
+          id: c?.id ?? id,
+          name: c?.name ?? name,
+          args: (c?.args ?? StringBuffer())..write(arguments),
+        );
+        started = true;
+      case ThinkingSignatureEvent(:final signature):
+        roundSignature = signature;
       case ThinkingDelta(:final text):
         _thinking.write(text);
         started = true;

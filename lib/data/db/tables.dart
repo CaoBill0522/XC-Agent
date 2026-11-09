@@ -19,6 +19,9 @@ class Channels extends Table {
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime()();
 
+  /// 同步用的修改时间（毫秒时间戳，v6），由数据库触发器自动维护，见 SyncSchema。
+  IntColumn get modifiedAt => integer().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -45,6 +48,9 @@ class Models extends Table {
   RealColumn get inputPrice => real().nullable()();
   RealColumn get outputPrice => real().nullable()();
 
+  /// 同步用的修改时间（毫秒时间戳，v6），由数据库触发器自动维护，见 SyncSchema。
+  IntColumn get modifiedAt => integer().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -63,6 +69,9 @@ class ModelRoutes extends Table {
   IntColumn get priority => integer().withDefault(const Constant(0))();
   BoolColumn get enabled => boolean().withDefault(const Constant(true))();
 
+  /// 同步用的修改时间（毫秒时间戳，v6），由数据库触发器自动维护，见 SyncSchema。
+  IntColumn get modifiedAt => integer().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -78,6 +87,9 @@ class Agents extends Table {
   /// 采样参数等，JSON 对象（temperature / top_p / max_tokens / reasoning_effort ...）。
   TextColumn get paramsJson => text().withDefault(const Constant('{}'))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  /// 同步用的修改时间（毫秒时间戳，v6），由数据库触发器自动维护，见 SyncSchema。
+  IntColumn get modifiedAt => integer().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -102,9 +114,15 @@ class Conversations extends Table {
   /// 会话选项 JSON（v5）：裁判 / 总结者、辩论轮数、上下文条数、自动压缩、
   /// 压缩后的早期对话摘要等，见 ConversationOptions。
   TextColumn get optionsJson => text().withDefault(const Constant('{}'))();
+
+  /// 所在文件夹（v6），null = 未归档。
+  TextColumn get folderId => text().nullable()();
   BoolColumn get pinned => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
+
+  /// 同步用的修改时间（毫秒时间戳，v6），由数据库触发器自动维护，见 SyncSchema。
+  IntColumn get modifiedAt => integer().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -161,6 +179,31 @@ class Prompts extends Table {
   TextColumn get content => text()();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
+  /// 同步用的修改时间（毫秒时间戳，v6），由数据库触发器自动维护，见 SyncSchema。
+  IntColumn get modifiedAt => integer().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
+}
+
+/// 对话文件夹。（v6）
+class Folders extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  IntColumn get modifiedAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 删除记录（v6）：iCloud 同步时把删除传到其他设备。由触发器写入。
+class Tombstones extends Table {
+  /// 表名，如 conversations。
+  TextColumn get kind => text()();
+  TextColumn get id => text()();
+  IntColumn get deletedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {kind, id};
 }

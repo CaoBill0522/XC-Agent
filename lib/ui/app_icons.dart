@@ -53,6 +53,15 @@ class AppIcons {
   static MiuixVectorIcon get file => _ext('file');
   static MiuixVectorIcon get filter => _ext('filter');
   static MiuixVectorIcon get backup => _ext('backup');
+  static MiuixVectorIcon get folder => _ext('folder');
+  static MiuixVectorIcon get addFolder => _ext('addFolder');
+  static MiuixVectorIcon get moveFile => _ext('moveFile');
+  static MiuixVectorIcon get lock => _ext('lock');
+  static MiuixVectorIcon get mic => _ext('mic');
+  static MiuixVectorIcon get volumeUp => _ext('volumeUp');
+  static MiuixVectorIcon get cloud => _ext('cloudFill');
+  static MiuixVectorIcon get play => _ext('play');
+  static MiuixVectorIcon get tools => _ext('gridView');
   static MiuixVectorIcon get search => MiuixIcons.basic.search;
   static MiuixVectorIcon get sidebar => MiuixIcons.basic.sidebar;
 }

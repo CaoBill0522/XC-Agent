@@ -110,6 +110,17 @@ class $ChannelsTable extends Channels with TableInfo<$ChannelsTable, Channel> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _modifiedAtMeta = const VerificationMeta(
+    'modifiedAt',
+  );
+  @override
+  late final GeneratedColumn<int> modifiedAt = GeneratedColumn<int>(
+    'modified_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -121,6 +132,7 @@ class $ChannelsTable extends Channels with TableInfo<$ChannelsTable, Channel> {
     enabled,
     sortOrder,
     createdAt,
+    modifiedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -198,6 +210,12 @@ class $ChannelsTable extends Channels with TableInfo<$ChannelsTable, Channel> {
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('modified_at')) {
+      context.handle(
+        _modifiedAtMeta,
+        modifiedAt.isAcceptableOrUnknown(data['modified_at']!, _modifiedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -243,6 +261,10 @@ class $ChannelsTable extends Channels with TableInfo<$ChannelsTable, Channel> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      modifiedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}modified_at'],
+      ),
     );
   }
 
@@ -268,6 +290,9 @@ class Channel extends DataClass implements Insertable<Channel> {
   final bool enabled;
   final int sortOrder;
   final DateTime createdAt;
+
+  /// 同步用的修改时间（毫秒时间戳，v6），由数据库触发器自动维护，见 SyncSchema。
+  final int? modifiedAt;
   const Channel({
     required this.id,
     required this.name,
@@ -278,6 +303,7 @@ class Channel extends DataClass implements Insertable<Channel> {
     required this.enabled,
     required this.sortOrder,
     required this.createdAt,
+    this.modifiedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -291,6 +317,9 @@ class Channel extends DataClass implements Insertable<Channel> {
     map['enabled'] = Variable<bool>(enabled);
     map['sort_order'] = Variable<int>(sortOrder);
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || modifiedAt != null) {
+      map['modified_at'] = Variable<int>(modifiedAt);
+    }
     return map;
   }
 
@@ -305,6 +334,9 @@ class Channel extends DataClass implements Insertable<Channel> {
       enabled: Value(enabled),
       sortOrder: Value(sortOrder),
       createdAt: Value(createdAt),
+      modifiedAt: modifiedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modifiedAt),
     );
   }
 
@@ -323,6 +355,7 @@ class Channel extends DataClass implements Insertable<Channel> {
       enabled: serializer.fromJson<bool>(json['enabled']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      modifiedAt: serializer.fromJson<int?>(json['modifiedAt']),
     );
   }
   @override
@@ -338,6 +371,7 @@ class Channel extends DataClass implements Insertable<Channel> {
       'enabled': serializer.toJson<bool>(enabled),
       'sortOrder': serializer.toJson<int>(sortOrder),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'modifiedAt': serializer.toJson<int?>(modifiedAt),
     };
   }
 
@@ -351,6 +385,7 @@ class Channel extends DataClass implements Insertable<Channel> {
     bool? enabled,
     int? sortOrder,
     DateTime? createdAt,
+    Value<int?> modifiedAt = const Value.absent(),
   }) => Channel(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -361,6 +396,7 @@ class Channel extends DataClass implements Insertable<Channel> {
     enabled: enabled ?? this.enabled,
     sortOrder: sortOrder ?? this.sortOrder,
     createdAt: createdAt ?? this.createdAt,
+    modifiedAt: modifiedAt.present ? modifiedAt.value : this.modifiedAt,
   );
   Channel copyWithCompanion(ChannelsCompanion data) {
     return Channel(
@@ -375,6 +411,9 @@ class Channel extends DataClass implements Insertable<Channel> {
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      modifiedAt: data.modifiedAt.present
+          ? data.modifiedAt.value
+          : this.modifiedAt,
     );
   }
 
@@ -389,7 +428,8 @@ class Channel extends DataClass implements Insertable<Channel> {
           ..write('headersJson: $headersJson, ')
           ..write('enabled: $enabled, ')
           ..write('sortOrder: $sortOrder, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('modifiedAt: $modifiedAt')
           ..write(')'))
         .toString();
   }
@@ -405,6 +445,7 @@ class Channel extends DataClass implements Insertable<Channel> {
     enabled,
     sortOrder,
     createdAt,
+    modifiedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -418,7 +459,8 @@ class Channel extends DataClass implements Insertable<Channel> {
           other.headersJson == this.headersJson &&
           other.enabled == this.enabled &&
           other.sortOrder == this.sortOrder &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.modifiedAt == this.modifiedAt);
 }
 
 class ChannelsCompanion extends UpdateCompanion<Channel> {
@@ -431,6 +473,7 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
   final Value<bool> enabled;
   final Value<int> sortOrder;
   final Value<DateTime> createdAt;
+  final Value<int?> modifiedAt;
   final Value<int> rowid;
   const ChannelsCompanion({
     this.id = const Value.absent(),
@@ -442,6 +485,7 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
     this.enabled = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ChannelsCompanion.insert({
@@ -454,6 +498,7 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
     this.enabled = const Value.absent(),
     this.sortOrder = const Value.absent(),
     required DateTime createdAt,
+    this.modifiedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -470,6 +515,7 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
     Expression<bool>? enabled,
     Expression<int>? sortOrder,
     Expression<DateTime>? createdAt,
+    Expression<int>? modifiedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -482,6 +528,7 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
       if (enabled != null) 'enabled': enabled,
       if (sortOrder != null) 'sort_order': sortOrder,
       if (createdAt != null) 'created_at': createdAt,
+      if (modifiedAt != null) 'modified_at': modifiedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -496,6 +543,7 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
     Value<bool>? enabled,
     Value<int>? sortOrder,
     Value<DateTime>? createdAt,
+    Value<int?>? modifiedAt,
     Value<int>? rowid,
   }) {
     return ChannelsCompanion(
@@ -508,6 +556,7 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
       enabled: enabled ?? this.enabled,
       sortOrder: sortOrder ?? this.sortOrder,
       createdAt: createdAt ?? this.createdAt,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -542,6 +591,9 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (modifiedAt.present) {
+      map['modified_at'] = Variable<int>(modifiedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -560,6 +612,7 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
           ..write('enabled: $enabled, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('createdAt: $createdAt, ')
+          ..write('modifiedAt: $modifiedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -676,6 +729,17 @@ class $ModelsTable extends Models with TableInfo<$ModelsTable, Model> {
     type: DriftSqlType.double,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _modifiedAtMeta = const VerificationMeta(
+    'modifiedAt',
+  );
+  @override
+  late final GeneratedColumn<int> modifiedAt = GeneratedColumn<int>(
+    'modified_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -687,6 +751,7 @@ class $ModelsTable extends Models with TableInfo<$ModelsTable, Model> {
     sortOrder,
     inputPrice,
     outputPrice,
+    modifiedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -767,6 +832,12 @@ class $ModelsTable extends Models with TableInfo<$ModelsTable, Model> {
         ),
       );
     }
+    if (data.containsKey('modified_at')) {
+      context.handle(
+        _modifiedAtMeta,
+        modifiedAt.isAcceptableOrUnknown(data['modified_at']!, _modifiedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -812,6 +883,10 @@ class $ModelsTable extends Models with TableInfo<$ModelsTable, Model> {
         DriftSqlType.double,
         data['${effectivePrefix}output_price'],
       ),
+      modifiedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}modified_at'],
+      ),
     );
   }
 
@@ -840,6 +915,9 @@ class Model extends DataClass implements Insertable<Model> {
   /// 单价：每百万 token 的输入 / 输出价格（货币见设置），用于用量统计。（v5）
   final double? inputPrice;
   final double? outputPrice;
+
+  /// 同步用的修改时间（毫秒时间戳，v6），由数据库触发器自动维护，见 SyncSchema。
+  final int? modifiedAt;
   const Model({
     required this.id,
     required this.displayName,
@@ -850,6 +928,7 @@ class Model extends DataClass implements Insertable<Model> {
     required this.sortOrder,
     this.inputPrice,
     this.outputPrice,
+    this.modifiedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -866,6 +945,9 @@ class Model extends DataClass implements Insertable<Model> {
     }
     if (!nullToAbsent || outputPrice != null) {
       map['output_price'] = Variable<double>(outputPrice);
+    }
+    if (!nullToAbsent || modifiedAt != null) {
+      map['modified_at'] = Variable<int>(modifiedAt);
     }
     return map;
   }
@@ -885,6 +967,9 @@ class Model extends DataClass implements Insertable<Model> {
       outputPrice: outputPrice == null && nullToAbsent
           ? const Value.absent()
           : Value(outputPrice),
+      modifiedAt: modifiedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modifiedAt),
     );
   }
 
@@ -903,6 +988,7 @@ class Model extends DataClass implements Insertable<Model> {
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
       inputPrice: serializer.fromJson<double?>(json['inputPrice']),
       outputPrice: serializer.fromJson<double?>(json['outputPrice']),
+      modifiedAt: serializer.fromJson<int?>(json['modifiedAt']),
     );
   }
   @override
@@ -918,6 +1004,7 @@ class Model extends DataClass implements Insertable<Model> {
       'sortOrder': serializer.toJson<int>(sortOrder),
       'inputPrice': serializer.toJson<double?>(inputPrice),
       'outputPrice': serializer.toJson<double?>(outputPrice),
+      'modifiedAt': serializer.toJson<int?>(modifiedAt),
     };
   }
 
@@ -931,6 +1018,7 @@ class Model extends DataClass implements Insertable<Model> {
     int? sortOrder,
     Value<double?> inputPrice = const Value.absent(),
     Value<double?> outputPrice = const Value.absent(),
+    Value<int?> modifiedAt = const Value.absent(),
   }) => Model(
     id: id ?? this.id,
     displayName: displayName ?? this.displayName,
@@ -941,6 +1029,7 @@ class Model extends DataClass implements Insertable<Model> {
     sortOrder: sortOrder ?? this.sortOrder,
     inputPrice: inputPrice.present ? inputPrice.value : this.inputPrice,
     outputPrice: outputPrice.present ? outputPrice.value : this.outputPrice,
+    modifiedAt: modifiedAt.present ? modifiedAt.value : this.modifiedAt,
   );
   Model copyWithCompanion(ModelsCompanion data) {
     return Model(
@@ -963,6 +1052,9 @@ class Model extends DataClass implements Insertable<Model> {
       outputPrice: data.outputPrice.present
           ? data.outputPrice.value
           : this.outputPrice,
+      modifiedAt: data.modifiedAt.present
+          ? data.modifiedAt.value
+          : this.modifiedAt,
     );
   }
 
@@ -977,7 +1069,8 @@ class Model extends DataClass implements Insertable<Model> {
           ..write('enabled: $enabled, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('inputPrice: $inputPrice, ')
-          ..write('outputPrice: $outputPrice')
+          ..write('outputPrice: $outputPrice, ')
+          ..write('modifiedAt: $modifiedAt')
           ..write(')'))
         .toString();
   }
@@ -993,6 +1086,7 @@ class Model extends DataClass implements Insertable<Model> {
     sortOrder,
     inputPrice,
     outputPrice,
+    modifiedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -1006,7 +1100,8 @@ class Model extends DataClass implements Insertable<Model> {
           other.enabled == this.enabled &&
           other.sortOrder == this.sortOrder &&
           other.inputPrice == this.inputPrice &&
-          other.outputPrice == this.outputPrice);
+          other.outputPrice == this.outputPrice &&
+          other.modifiedAt == this.modifiedAt);
 }
 
 class ModelsCompanion extends UpdateCompanion<Model> {
@@ -1019,6 +1114,7 @@ class ModelsCompanion extends UpdateCompanion<Model> {
   final Value<int> sortOrder;
   final Value<double?> inputPrice;
   final Value<double?> outputPrice;
+  final Value<int?> modifiedAt;
   final Value<int> rowid;
   const ModelsCompanion({
     this.id = const Value.absent(),
@@ -1030,6 +1126,7 @@ class ModelsCompanion extends UpdateCompanion<Model> {
     this.sortOrder = const Value.absent(),
     this.inputPrice = const Value.absent(),
     this.outputPrice = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ModelsCompanion.insert({
@@ -1042,6 +1139,7 @@ class ModelsCompanion extends UpdateCompanion<Model> {
     this.sortOrder = const Value.absent(),
     this.inputPrice = const Value.absent(),
     this.outputPrice = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        displayName = Value(displayName);
@@ -1055,6 +1153,7 @@ class ModelsCompanion extends UpdateCompanion<Model> {
     Expression<int>? sortOrder,
     Expression<double>? inputPrice,
     Expression<double>? outputPrice,
+    Expression<int>? modifiedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1067,6 +1166,7 @@ class ModelsCompanion extends UpdateCompanion<Model> {
       if (sortOrder != null) 'sort_order': sortOrder,
       if (inputPrice != null) 'input_price': inputPrice,
       if (outputPrice != null) 'output_price': outputPrice,
+      if (modifiedAt != null) 'modified_at': modifiedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1081,6 +1181,7 @@ class ModelsCompanion extends UpdateCompanion<Model> {
     Value<int>? sortOrder,
     Value<double?>? inputPrice,
     Value<double?>? outputPrice,
+    Value<int?>? modifiedAt,
     Value<int>? rowid,
   }) {
     return ModelsCompanion(
@@ -1093,6 +1194,7 @@ class ModelsCompanion extends UpdateCompanion<Model> {
       sortOrder: sortOrder ?? this.sortOrder,
       inputPrice: inputPrice ?? this.inputPrice,
       outputPrice: outputPrice ?? this.outputPrice,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1127,6 +1229,9 @@ class ModelsCompanion extends UpdateCompanion<Model> {
     if (outputPrice.present) {
       map['output_price'] = Variable<double>(outputPrice.value);
     }
+    if (modifiedAt.present) {
+      map['modified_at'] = Variable<int>(modifiedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1145,6 +1250,7 @@ class ModelsCompanion extends UpdateCompanion<Model> {
           ..write('sortOrder: $sortOrder, ')
           ..write('inputPrice: $inputPrice, ')
           ..write('outputPrice: $outputPrice, ')
+          ..write('modifiedAt: $modifiedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1242,6 +1348,17 @@ class $ModelRoutesTable extends ModelRoutes
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _modifiedAtMeta = const VerificationMeta(
+    'modifiedAt',
+  );
+  @override
+  late final GeneratedColumn<int> modifiedAt = GeneratedColumn<int>(
+    'modified_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1251,6 +1368,7 @@ class $ModelRoutesTable extends ModelRoutes
     weight,
     priority,
     enabled,
+    modifiedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1314,6 +1432,12 @@ class $ModelRoutesTable extends ModelRoutes
         enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta),
       );
     }
+    if (data.containsKey('modified_at')) {
+      context.handle(
+        _modifiedAtMeta,
+        modifiedAt.isAcceptableOrUnknown(data['modified_at']!, _modifiedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -1351,6 +1475,10 @@ class $ModelRoutesTable extends ModelRoutes
         DriftSqlType.bool,
         data['${effectivePrefix}enabled'],
       )!,
+      modifiedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}modified_at'],
+      ),
     );
   }
 
@@ -1370,6 +1498,9 @@ class ModelRoute extends DataClass implements Insertable<ModelRoute> {
   final int weight;
   final int priority;
   final bool enabled;
+
+  /// 同步用的修改时间（毫秒时间戳，v6），由数据库触发器自动维护，见 SyncSchema。
+  final int? modifiedAt;
   const ModelRoute({
     required this.id,
     required this.modelId,
@@ -1378,6 +1509,7 @@ class ModelRoute extends DataClass implements Insertable<ModelRoute> {
     required this.weight,
     required this.priority,
     required this.enabled,
+    this.modifiedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1389,6 +1521,9 @@ class ModelRoute extends DataClass implements Insertable<ModelRoute> {
     map['weight'] = Variable<int>(weight);
     map['priority'] = Variable<int>(priority);
     map['enabled'] = Variable<bool>(enabled);
+    if (!nullToAbsent || modifiedAt != null) {
+      map['modified_at'] = Variable<int>(modifiedAt);
+    }
     return map;
   }
 
@@ -1401,6 +1536,9 @@ class ModelRoute extends DataClass implements Insertable<ModelRoute> {
       weight: Value(weight),
       priority: Value(priority),
       enabled: Value(enabled),
+      modifiedAt: modifiedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modifiedAt),
     );
   }
 
@@ -1417,6 +1555,7 @@ class ModelRoute extends DataClass implements Insertable<ModelRoute> {
       weight: serializer.fromJson<int>(json['weight']),
       priority: serializer.fromJson<int>(json['priority']),
       enabled: serializer.fromJson<bool>(json['enabled']),
+      modifiedAt: serializer.fromJson<int?>(json['modifiedAt']),
     );
   }
   @override
@@ -1430,6 +1569,7 @@ class ModelRoute extends DataClass implements Insertable<ModelRoute> {
       'weight': serializer.toJson<int>(weight),
       'priority': serializer.toJson<int>(priority),
       'enabled': serializer.toJson<bool>(enabled),
+      'modifiedAt': serializer.toJson<int?>(modifiedAt),
     };
   }
 
@@ -1441,6 +1581,7 @@ class ModelRoute extends DataClass implements Insertable<ModelRoute> {
     int? weight,
     int? priority,
     bool? enabled,
+    Value<int?> modifiedAt = const Value.absent(),
   }) => ModelRoute(
     id: id ?? this.id,
     modelId: modelId ?? this.modelId,
@@ -1449,6 +1590,7 @@ class ModelRoute extends DataClass implements Insertable<ModelRoute> {
     weight: weight ?? this.weight,
     priority: priority ?? this.priority,
     enabled: enabled ?? this.enabled,
+    modifiedAt: modifiedAt.present ? modifiedAt.value : this.modifiedAt,
   );
   ModelRoute copyWithCompanion(ModelRoutesCompanion data) {
     return ModelRoute(
@@ -1461,6 +1603,9 @@ class ModelRoute extends DataClass implements Insertable<ModelRoute> {
       weight: data.weight.present ? data.weight.value : this.weight,
       priority: data.priority.present ? data.priority.value : this.priority,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
+      modifiedAt: data.modifiedAt.present
+          ? data.modifiedAt.value
+          : this.modifiedAt,
     );
   }
 
@@ -1473,7 +1618,8 @@ class ModelRoute extends DataClass implements Insertable<ModelRoute> {
           ..write('upstreamModel: $upstreamModel, ')
           ..write('weight: $weight, ')
           ..write('priority: $priority, ')
-          ..write('enabled: $enabled')
+          ..write('enabled: $enabled, ')
+          ..write('modifiedAt: $modifiedAt')
           ..write(')'))
         .toString();
   }
@@ -1487,6 +1633,7 @@ class ModelRoute extends DataClass implements Insertable<ModelRoute> {
     weight,
     priority,
     enabled,
+    modifiedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -1498,7 +1645,8 @@ class ModelRoute extends DataClass implements Insertable<ModelRoute> {
           other.upstreamModel == this.upstreamModel &&
           other.weight == this.weight &&
           other.priority == this.priority &&
-          other.enabled == this.enabled);
+          other.enabled == this.enabled &&
+          other.modifiedAt == this.modifiedAt);
 }
 
 class ModelRoutesCompanion extends UpdateCompanion<ModelRoute> {
@@ -1509,6 +1657,7 @@ class ModelRoutesCompanion extends UpdateCompanion<ModelRoute> {
   final Value<int> weight;
   final Value<int> priority;
   final Value<bool> enabled;
+  final Value<int?> modifiedAt;
   final Value<int> rowid;
   const ModelRoutesCompanion({
     this.id = const Value.absent(),
@@ -1518,6 +1667,7 @@ class ModelRoutesCompanion extends UpdateCompanion<ModelRoute> {
     this.weight = const Value.absent(),
     this.priority = const Value.absent(),
     this.enabled = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ModelRoutesCompanion.insert({
@@ -1528,6 +1678,7 @@ class ModelRoutesCompanion extends UpdateCompanion<ModelRoute> {
     this.weight = const Value.absent(),
     this.priority = const Value.absent(),
     this.enabled = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        modelId = Value(modelId),
@@ -1541,6 +1692,7 @@ class ModelRoutesCompanion extends UpdateCompanion<ModelRoute> {
     Expression<int>? weight,
     Expression<int>? priority,
     Expression<bool>? enabled,
+    Expression<int>? modifiedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1551,6 +1703,7 @@ class ModelRoutesCompanion extends UpdateCompanion<ModelRoute> {
       if (weight != null) 'weight': weight,
       if (priority != null) 'priority': priority,
       if (enabled != null) 'enabled': enabled,
+      if (modifiedAt != null) 'modified_at': modifiedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1563,6 +1716,7 @@ class ModelRoutesCompanion extends UpdateCompanion<ModelRoute> {
     Value<int>? weight,
     Value<int>? priority,
     Value<bool>? enabled,
+    Value<int?>? modifiedAt,
     Value<int>? rowid,
   }) {
     return ModelRoutesCompanion(
@@ -1573,6 +1727,7 @@ class ModelRoutesCompanion extends UpdateCompanion<ModelRoute> {
       weight: weight ?? this.weight,
       priority: priority ?? this.priority,
       enabled: enabled ?? this.enabled,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1601,6 +1756,9 @@ class ModelRoutesCompanion extends UpdateCompanion<ModelRoute> {
     if (enabled.present) {
       map['enabled'] = Variable<bool>(enabled.value);
     }
+    if (modifiedAt.present) {
+      map['modified_at'] = Variable<int>(modifiedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1617,6 +1775,7 @@ class ModelRoutesCompanion extends UpdateCompanion<ModelRoute> {
           ..write('weight: $weight, ')
           ..write('priority: $priority, ')
           ..write('enabled: $enabled, ')
+          ..write('modifiedAt: $modifiedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1702,6 +1861,17 @@ class $AgentsTable extends Agents with TableInfo<$AgentsTable, Agent> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _modifiedAtMeta = const VerificationMeta(
+    'modifiedAt',
+  );
+  @override
+  late final GeneratedColumn<int> modifiedAt = GeneratedColumn<int>(
+    'modified_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1711,6 +1881,7 @@ class $AgentsTable extends Agents with TableInfo<$AgentsTable, Agent> {
     systemPrompt,
     paramsJson,
     sortOrder,
+    modifiedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1770,6 +1941,12 @@ class $AgentsTable extends Agents with TableInfo<$AgentsTable, Agent> {
         sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
       );
     }
+    if (data.containsKey('modified_at')) {
+      context.handle(
+        _modifiedAtMeta,
+        modifiedAt.isAcceptableOrUnknown(data['modified_at']!, _modifiedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -1807,6 +1984,10 @@ class $AgentsTable extends Agents with TableInfo<$AgentsTable, Agent> {
         DriftSqlType.int,
         data['${effectivePrefix}sort_order'],
       )!,
+      modifiedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}modified_at'],
+      ),
     );
   }
 
@@ -1826,6 +2007,9 @@ class Agent extends DataClass implements Insertable<Agent> {
   /// 采样参数等，JSON 对象（temperature / top_p / max_tokens / reasoning_effort ...）。
   final String paramsJson;
   final int sortOrder;
+
+  /// 同步用的修改时间（毫秒时间戳，v6），由数据库触发器自动维护，见 SyncSchema。
+  final int? modifiedAt;
   const Agent({
     required this.id,
     required this.name,
@@ -1834,6 +2018,7 @@ class Agent extends DataClass implements Insertable<Agent> {
     required this.systemPrompt,
     required this.paramsJson,
     required this.sortOrder,
+    this.modifiedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1849,6 +2034,9 @@ class Agent extends DataClass implements Insertable<Agent> {
     map['system_prompt'] = Variable<String>(systemPrompt);
     map['params_json'] = Variable<String>(paramsJson);
     map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || modifiedAt != null) {
+      map['modified_at'] = Variable<int>(modifiedAt);
+    }
     return map;
   }
 
@@ -1865,6 +2053,9 @@ class Agent extends DataClass implements Insertable<Agent> {
       systemPrompt: Value(systemPrompt),
       paramsJson: Value(paramsJson),
       sortOrder: Value(sortOrder),
+      modifiedAt: modifiedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modifiedAt),
     );
   }
 
@@ -1881,6 +2072,7 @@ class Agent extends DataClass implements Insertable<Agent> {
       systemPrompt: serializer.fromJson<String>(json['systemPrompt']),
       paramsJson: serializer.fromJson<String>(json['paramsJson']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      modifiedAt: serializer.fromJson<int?>(json['modifiedAt']),
     );
   }
   @override
@@ -1894,6 +2086,7 @@ class Agent extends DataClass implements Insertable<Agent> {
       'systemPrompt': serializer.toJson<String>(systemPrompt),
       'paramsJson': serializer.toJson<String>(paramsJson),
       'sortOrder': serializer.toJson<int>(sortOrder),
+      'modifiedAt': serializer.toJson<int?>(modifiedAt),
     };
   }
 
@@ -1905,6 +2098,7 @@ class Agent extends DataClass implements Insertable<Agent> {
     String? systemPrompt,
     String? paramsJson,
     int? sortOrder,
+    Value<int?> modifiedAt = const Value.absent(),
   }) => Agent(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -1913,6 +2107,7 @@ class Agent extends DataClass implements Insertable<Agent> {
     systemPrompt: systemPrompt ?? this.systemPrompt,
     paramsJson: paramsJson ?? this.paramsJson,
     sortOrder: sortOrder ?? this.sortOrder,
+    modifiedAt: modifiedAt.present ? modifiedAt.value : this.modifiedAt,
   );
   Agent copyWithCompanion(AgentsCompanion data) {
     return Agent(
@@ -1927,6 +2122,9 @@ class Agent extends DataClass implements Insertable<Agent> {
           ? data.paramsJson.value
           : this.paramsJson,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      modifiedAt: data.modifiedAt.present
+          ? data.modifiedAt.value
+          : this.modifiedAt,
     );
   }
 
@@ -1939,7 +2137,8 @@ class Agent extends DataClass implements Insertable<Agent> {
           ..write('modelId: $modelId, ')
           ..write('systemPrompt: $systemPrompt, ')
           ..write('paramsJson: $paramsJson, ')
-          ..write('sortOrder: $sortOrder')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('modifiedAt: $modifiedAt')
           ..write(')'))
         .toString();
   }
@@ -1953,6 +2152,7 @@ class Agent extends DataClass implements Insertable<Agent> {
     systemPrompt,
     paramsJson,
     sortOrder,
+    modifiedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -1964,7 +2164,8 @@ class Agent extends DataClass implements Insertable<Agent> {
           other.modelId == this.modelId &&
           other.systemPrompt == this.systemPrompt &&
           other.paramsJson == this.paramsJson &&
-          other.sortOrder == this.sortOrder);
+          other.sortOrder == this.sortOrder &&
+          other.modifiedAt == this.modifiedAt);
 }
 
 class AgentsCompanion extends UpdateCompanion<Agent> {
@@ -1975,6 +2176,7 @@ class AgentsCompanion extends UpdateCompanion<Agent> {
   final Value<String> systemPrompt;
   final Value<String> paramsJson;
   final Value<int> sortOrder;
+  final Value<int?> modifiedAt;
   final Value<int> rowid;
   const AgentsCompanion({
     this.id = const Value.absent(),
@@ -1984,6 +2186,7 @@ class AgentsCompanion extends UpdateCompanion<Agent> {
     this.systemPrompt = const Value.absent(),
     this.paramsJson = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AgentsCompanion.insert({
@@ -1994,6 +2197,7 @@ class AgentsCompanion extends UpdateCompanion<Agent> {
     this.systemPrompt = const Value.absent(),
     this.paramsJson = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
@@ -2005,6 +2209,7 @@ class AgentsCompanion extends UpdateCompanion<Agent> {
     Expression<String>? systemPrompt,
     Expression<String>? paramsJson,
     Expression<int>? sortOrder,
+    Expression<int>? modifiedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2015,6 +2220,7 @@ class AgentsCompanion extends UpdateCompanion<Agent> {
       if (systemPrompt != null) 'system_prompt': systemPrompt,
       if (paramsJson != null) 'params_json': paramsJson,
       if (sortOrder != null) 'sort_order': sortOrder,
+      if (modifiedAt != null) 'modified_at': modifiedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2027,6 +2233,7 @@ class AgentsCompanion extends UpdateCompanion<Agent> {
     Value<String>? systemPrompt,
     Value<String>? paramsJson,
     Value<int>? sortOrder,
+    Value<int?>? modifiedAt,
     Value<int>? rowid,
   }) {
     return AgentsCompanion(
@@ -2037,6 +2244,7 @@ class AgentsCompanion extends UpdateCompanion<Agent> {
       systemPrompt: systemPrompt ?? this.systemPrompt,
       paramsJson: paramsJson ?? this.paramsJson,
       sortOrder: sortOrder ?? this.sortOrder,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2065,6 +2273,9 @@ class AgentsCompanion extends UpdateCompanion<Agent> {
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
+    if (modifiedAt.present) {
+      map['modified_at'] = Variable<int>(modifiedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2081,6 +2292,7 @@ class AgentsCompanion extends UpdateCompanion<Agent> {
           ..write('systemPrompt: $systemPrompt, ')
           ..write('paramsJson: $paramsJson, ')
           ..write('sortOrder: $sortOrder, ')
+          ..write('modifiedAt: $modifiedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2172,6 +2384,17 @@ class $ConversationsTable extends Conversations
     requiredDuringInsert: false,
     defaultValue: const Constant('{}'),
   );
+  static const VerificationMeta _folderIdMeta = const VerificationMeta(
+    'folderId',
+  );
+  @override
+  late final GeneratedColumn<String> folderId = GeneratedColumn<String>(
+    'folder_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _pinnedMeta = const VerificationMeta('pinned');
   @override
   late final GeneratedColumn<bool> pinned = GeneratedColumn<bool>(
@@ -2207,6 +2430,17 @@ class $ConversationsTable extends Conversations
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _modifiedAtMeta = const VerificationMeta(
+    'modifiedAt',
+  );
+  @override
+  late final GeneratedColumn<int> modifiedAt = GeneratedColumn<int>(
+    'modified_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2216,9 +2450,11 @@ class $ConversationsTable extends Conversations
     participantsJson,
     webSearch,
     optionsJson,
+    folderId,
     pinned,
     createdAt,
     updatedAt,
+    modifiedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2284,6 +2520,12 @@ class $ConversationsTable extends Conversations
         ),
       );
     }
+    if (data.containsKey('folder_id')) {
+      context.handle(
+        _folderIdMeta,
+        folderId.isAcceptableOrUnknown(data['folder_id']!, _folderIdMeta),
+      );
+    }
     if (data.containsKey('pinned')) {
       context.handle(
         _pinnedMeta,
@@ -2305,6 +2547,12 @@ class $ConversationsTable extends Conversations
       );
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('modified_at')) {
+      context.handle(
+        _modifiedAtMeta,
+        modifiedAt.isAcceptableOrUnknown(data['modified_at']!, _modifiedAtMeta),
+      );
     }
     return context;
   }
@@ -2343,6 +2591,10 @@ class $ConversationsTable extends Conversations
         DriftSqlType.string,
         data['${effectivePrefix}options_json'],
       )!,
+      folderId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}folder_id'],
+      ),
       pinned: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}pinned'],
@@ -2355,6 +2607,10 @@ class $ConversationsTable extends Conversations
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      modifiedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}modified_at'],
+      ),
     );
   }
 
@@ -2383,9 +2639,15 @@ class Conversation extends DataClass implements Insertable<Conversation> {
   /// 会话选项 JSON（v5）：裁判 / 总结者、辩论轮数、上下文条数、自动压缩、
   /// 压缩后的早期对话摘要等，见 ConversationOptions。
   final String optionsJson;
+
+  /// 所在文件夹（v6），null = 未归档。
+  final String? folderId;
   final bool pinned;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// 同步用的修改时间（毫秒时间戳，v6），由数据库触发器自动维护，见 SyncSchema。
+  final int? modifiedAt;
   const Conversation({
     required this.id,
     required this.title,
@@ -2394,9 +2656,11 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     required this.participantsJson,
     required this.webSearch,
     required this.optionsJson,
+    this.folderId,
     required this.pinned,
     required this.createdAt,
     required this.updatedAt,
+    this.modifiedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2408,9 +2672,15 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     map['participants_json'] = Variable<String>(participantsJson);
     map['web_search'] = Variable<bool>(webSearch);
     map['options_json'] = Variable<String>(optionsJson);
+    if (!nullToAbsent || folderId != null) {
+      map['folder_id'] = Variable<String>(folderId);
+    }
     map['pinned'] = Variable<bool>(pinned);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || modifiedAt != null) {
+      map['modified_at'] = Variable<int>(modifiedAt);
+    }
     return map;
   }
 
@@ -2423,9 +2693,15 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       participantsJson: Value(participantsJson),
       webSearch: Value(webSearch),
       optionsJson: Value(optionsJson),
+      folderId: folderId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(folderId),
       pinned: Value(pinned),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      modifiedAt: modifiedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modifiedAt),
     );
   }
 
@@ -2442,9 +2718,11 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       participantsJson: serializer.fromJson<String>(json['participantsJson']),
       webSearch: serializer.fromJson<bool>(json['webSearch']),
       optionsJson: serializer.fromJson<String>(json['optionsJson']),
+      folderId: serializer.fromJson<String?>(json['folderId']),
       pinned: serializer.fromJson<bool>(json['pinned']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      modifiedAt: serializer.fromJson<int?>(json['modifiedAt']),
     );
   }
   @override
@@ -2458,9 +2736,11 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       'participantsJson': serializer.toJson<String>(participantsJson),
       'webSearch': serializer.toJson<bool>(webSearch),
       'optionsJson': serializer.toJson<String>(optionsJson),
+      'folderId': serializer.toJson<String?>(folderId),
       'pinned': serializer.toJson<bool>(pinned),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'modifiedAt': serializer.toJson<int?>(modifiedAt),
     };
   }
 
@@ -2472,9 +2752,11 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     String? participantsJson,
     bool? webSearch,
     String? optionsJson,
+    Value<String?> folderId = const Value.absent(),
     bool? pinned,
     DateTime? createdAt,
     DateTime? updatedAt,
+    Value<int?> modifiedAt = const Value.absent(),
   }) => Conversation(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -2483,9 +2765,11 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     participantsJson: participantsJson ?? this.participantsJson,
     webSearch: webSearch ?? this.webSearch,
     optionsJson: optionsJson ?? this.optionsJson,
+    folderId: folderId.present ? folderId.value : this.folderId,
     pinned: pinned ?? this.pinned,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    modifiedAt: modifiedAt.present ? modifiedAt.value : this.modifiedAt,
   );
   Conversation copyWithCompanion(ConversationsCompanion data) {
     return Conversation(
@@ -2502,9 +2786,13 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       optionsJson: data.optionsJson.present
           ? data.optionsJson.value
           : this.optionsJson,
+      folderId: data.folderId.present ? data.folderId.value : this.folderId,
       pinned: data.pinned.present ? data.pinned.value : this.pinned,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      modifiedAt: data.modifiedAt.present
+          ? data.modifiedAt.value
+          : this.modifiedAt,
     );
   }
 
@@ -2518,9 +2806,11 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           ..write('participantsJson: $participantsJson, ')
           ..write('webSearch: $webSearch, ')
           ..write('optionsJson: $optionsJson, ')
+          ..write('folderId: $folderId, ')
           ..write('pinned: $pinned, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('modifiedAt: $modifiedAt')
           ..write(')'))
         .toString();
   }
@@ -2534,9 +2824,11 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     participantsJson,
     webSearch,
     optionsJson,
+    folderId,
     pinned,
     createdAt,
     updatedAt,
+    modifiedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -2549,9 +2841,11 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           other.participantsJson == this.participantsJson &&
           other.webSearch == this.webSearch &&
           other.optionsJson == this.optionsJson &&
+          other.folderId == this.folderId &&
           other.pinned == this.pinned &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.modifiedAt == this.modifiedAt);
 }
 
 class ConversationsCompanion extends UpdateCompanion<Conversation> {
@@ -2562,9 +2856,11 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
   final Value<String> participantsJson;
   final Value<bool> webSearch;
   final Value<String> optionsJson;
+  final Value<String?> folderId;
   final Value<bool> pinned;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<int?> modifiedAt;
   final Value<int> rowid;
   const ConversationsCompanion({
     this.id = const Value.absent(),
@@ -2574,9 +2870,11 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     this.participantsJson = const Value.absent(),
     this.webSearch = const Value.absent(),
     this.optionsJson = const Value.absent(),
+    this.folderId = const Value.absent(),
     this.pinned = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ConversationsCompanion.insert({
@@ -2587,9 +2885,11 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     this.participantsJson = const Value.absent(),
     this.webSearch = const Value.absent(),
     this.optionsJson = const Value.absent(),
+    this.folderId = const Value.absent(),
     this.pinned = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
+    this.modifiedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -2603,9 +2903,11 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     Expression<String>? participantsJson,
     Expression<bool>? webSearch,
     Expression<String>? optionsJson,
+    Expression<String>? folderId,
     Expression<bool>? pinned,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<int>? modifiedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2616,9 +2918,11 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       if (participantsJson != null) 'participants_json': participantsJson,
       if (webSearch != null) 'web_search': webSearch,
       if (optionsJson != null) 'options_json': optionsJson,
+      if (folderId != null) 'folder_id': folderId,
       if (pinned != null) 'pinned': pinned,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (modifiedAt != null) 'modified_at': modifiedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2631,9 +2935,11 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     Value<String>? participantsJson,
     Value<bool>? webSearch,
     Value<String>? optionsJson,
+    Value<String?>? folderId,
     Value<bool>? pinned,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<int?>? modifiedAt,
     Value<int>? rowid,
   }) {
     return ConversationsCompanion(
@@ -2644,9 +2950,11 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       participantsJson: participantsJson ?? this.participantsJson,
       webSearch: webSearch ?? this.webSearch,
       optionsJson: optionsJson ?? this.optionsJson,
+      folderId: folderId ?? this.folderId,
       pinned: pinned ?? this.pinned,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2675,6 +2983,9 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     if (optionsJson.present) {
       map['options_json'] = Variable<String>(optionsJson.value);
     }
+    if (folderId.present) {
+      map['folder_id'] = Variable<String>(folderId.value);
+    }
     if (pinned.present) {
       map['pinned'] = Variable<bool>(pinned.value);
     }
@@ -2683,6 +2994,9 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (modifiedAt.present) {
+      map['modified_at'] = Variable<int>(modifiedAt.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -2700,9 +3014,11 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
           ..write('participantsJson: $participantsJson, ')
           ..write('webSearch: $webSearch, ')
           ..write('optionsJson: $optionsJson, ')
+          ..write('folderId: $folderId, ')
           ..write('pinned: $pinned, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('modifiedAt: $modifiedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3730,8 +4046,25 @@ class $PromptsTable extends Prompts with TableInfo<$PromptsTable, Prompt> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _modifiedAtMeta = const VerificationMeta(
+    'modifiedAt',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, title, content, sortOrder];
+  late final GeneratedColumn<int> modifiedAt = GeneratedColumn<int>(
+    'modified_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    title,
+    content,
+    sortOrder,
+    modifiedAt,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -3771,6 +4104,12 @@ class $PromptsTable extends Prompts with TableInfo<$PromptsTable, Prompt> {
         sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
       );
     }
+    if (data.containsKey('modified_at')) {
+      context.handle(
+        _modifiedAtMeta,
+        modifiedAt.isAcceptableOrUnknown(data['modified_at']!, _modifiedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -3796,6 +4135,10 @@ class $PromptsTable extends Prompts with TableInfo<$PromptsTable, Prompt> {
         DriftSqlType.int,
         data['${effectivePrefix}sort_order'],
       )!,
+      modifiedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}modified_at'],
+      ),
     );
   }
 
@@ -3810,11 +4153,15 @@ class Prompt extends DataClass implements Insertable<Prompt> {
   final String title;
   final String content;
   final int sortOrder;
+
+  /// 同步用的修改时间（毫秒时间戳，v6），由数据库触发器自动维护，见 SyncSchema。
+  final int? modifiedAt;
   const Prompt({
     required this.id,
     required this.title,
     required this.content,
     required this.sortOrder,
+    this.modifiedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3823,6 +4170,9 @@ class Prompt extends DataClass implements Insertable<Prompt> {
     map['title'] = Variable<String>(title);
     map['content'] = Variable<String>(content);
     map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || modifiedAt != null) {
+      map['modified_at'] = Variable<int>(modifiedAt);
+    }
     return map;
   }
 
@@ -3832,6 +4182,9 @@ class Prompt extends DataClass implements Insertable<Prompt> {
       title: Value(title),
       content: Value(content),
       sortOrder: Value(sortOrder),
+      modifiedAt: modifiedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modifiedAt),
     );
   }
 
@@ -3845,6 +4198,7 @@ class Prompt extends DataClass implements Insertable<Prompt> {
       title: serializer.fromJson<String>(json['title']),
       content: serializer.fromJson<String>(json['content']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      modifiedAt: serializer.fromJson<int?>(json['modifiedAt']),
     );
   }
   @override
@@ -3855,6 +4209,7 @@ class Prompt extends DataClass implements Insertable<Prompt> {
       'title': serializer.toJson<String>(title),
       'content': serializer.toJson<String>(content),
       'sortOrder': serializer.toJson<int>(sortOrder),
+      'modifiedAt': serializer.toJson<int?>(modifiedAt),
     };
   }
 
@@ -3863,11 +4218,13 @@ class Prompt extends DataClass implements Insertable<Prompt> {
     String? title,
     String? content,
     int? sortOrder,
+    Value<int?> modifiedAt = const Value.absent(),
   }) => Prompt(
     id: id ?? this.id,
     title: title ?? this.title,
     content: content ?? this.content,
     sortOrder: sortOrder ?? this.sortOrder,
+    modifiedAt: modifiedAt.present ? modifiedAt.value : this.modifiedAt,
   );
   Prompt copyWithCompanion(PromptsCompanion data) {
     return Prompt(
@@ -3875,6 +4232,9 @@ class Prompt extends DataClass implements Insertable<Prompt> {
       title: data.title.present ? data.title.value : this.title,
       content: data.content.present ? data.content.value : this.content,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      modifiedAt: data.modifiedAt.present
+          ? data.modifiedAt.value
+          : this.modifiedAt,
     );
   }
 
@@ -3884,13 +4244,14 @@ class Prompt extends DataClass implements Insertable<Prompt> {
           ..write('id: $id, ')
           ..write('title: $title, ')
           ..write('content: $content, ')
-          ..write('sortOrder: $sortOrder')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('modifiedAt: $modifiedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, title, content, sortOrder);
+  int get hashCode => Object.hash(id, title, content, sortOrder, modifiedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3898,7 +4259,8 @@ class Prompt extends DataClass implements Insertable<Prompt> {
           other.id == this.id &&
           other.title == this.title &&
           other.content == this.content &&
-          other.sortOrder == this.sortOrder);
+          other.sortOrder == this.sortOrder &&
+          other.modifiedAt == this.modifiedAt);
 }
 
 class PromptsCompanion extends UpdateCompanion<Prompt> {
@@ -3906,12 +4268,14 @@ class PromptsCompanion extends UpdateCompanion<Prompt> {
   final Value<String> title;
   final Value<String> content;
   final Value<int> sortOrder;
+  final Value<int?> modifiedAt;
   final Value<int> rowid;
   const PromptsCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
     this.content = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PromptsCompanion.insert({
@@ -3919,6 +4283,7 @@ class PromptsCompanion extends UpdateCompanion<Prompt> {
     required String title,
     required String content,
     this.sortOrder = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -3928,6 +4293,7 @@ class PromptsCompanion extends UpdateCompanion<Prompt> {
     Expression<String>? title,
     Expression<String>? content,
     Expression<int>? sortOrder,
+    Expression<int>? modifiedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3935,6 +4301,7 @@ class PromptsCompanion extends UpdateCompanion<Prompt> {
       if (title != null) 'title': title,
       if (content != null) 'content': content,
       if (sortOrder != null) 'sort_order': sortOrder,
+      if (modifiedAt != null) 'modified_at': modifiedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3944,6 +4311,7 @@ class PromptsCompanion extends UpdateCompanion<Prompt> {
     Value<String>? title,
     Value<String>? content,
     Value<int>? sortOrder,
+    Value<int?>? modifiedAt,
     Value<int>? rowid,
   }) {
     return PromptsCompanion(
@@ -3951,6 +4319,7 @@ class PromptsCompanion extends UpdateCompanion<Prompt> {
       title: title ?? this.title,
       content: content ?? this.content,
       sortOrder: sortOrder ?? this.sortOrder,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3970,6 +4339,9 @@ class PromptsCompanion extends UpdateCompanion<Prompt> {
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
+    if (modifiedAt.present) {
+      map['modified_at'] = Variable<int>(modifiedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3983,6 +4355,574 @@ class PromptsCompanion extends UpdateCompanion<Prompt> {
           ..write('title: $title, ')
           ..write('content: $content, ')
           ..write('sortOrder: $sortOrder, ')
+          ..write('modifiedAt: $modifiedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $FoldersTable extends Folders with TableInfo<$FoldersTable, Folder> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FoldersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _modifiedAtMeta = const VerificationMeta(
+    'modifiedAt',
+  );
+  @override
+  late final GeneratedColumn<int> modifiedAt = GeneratedColumn<int>(
+    'modified_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, sortOrder, modifiedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'folders';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Folder> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    if (data.containsKey('modified_at')) {
+      context.handle(
+        _modifiedAtMeta,
+        modifiedAt.isAcceptableOrUnknown(data['modified_at']!, _modifiedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Folder map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Folder(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+      modifiedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}modified_at'],
+      ),
+    );
+  }
+
+  @override
+  $FoldersTable createAlias(String alias) {
+    return $FoldersTable(attachedDatabase, alias);
+  }
+}
+
+class Folder extends DataClass implements Insertable<Folder> {
+  final String id;
+  final String name;
+  final int sortOrder;
+  final int? modifiedAt;
+  const Folder({
+    required this.id,
+    required this.name,
+    required this.sortOrder,
+    this.modifiedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || modifiedAt != null) {
+      map['modified_at'] = Variable<int>(modifiedAt);
+    }
+    return map;
+  }
+
+  FoldersCompanion toCompanion(bool nullToAbsent) {
+    return FoldersCompanion(
+      id: Value(id),
+      name: Value(name),
+      sortOrder: Value(sortOrder),
+      modifiedAt: modifiedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modifiedAt),
+    );
+  }
+
+  factory Folder.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Folder(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      modifiedAt: serializer.fromJson<int?>(json['modifiedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'modifiedAt': serializer.toJson<int?>(modifiedAt),
+    };
+  }
+
+  Folder copyWith({
+    String? id,
+    String? name,
+    int? sortOrder,
+    Value<int?> modifiedAt = const Value.absent(),
+  }) => Folder(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    sortOrder: sortOrder ?? this.sortOrder,
+    modifiedAt: modifiedAt.present ? modifiedAt.value : this.modifiedAt,
+  );
+  Folder copyWithCompanion(FoldersCompanion data) {
+    return Folder(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      modifiedAt: data.modifiedAt.present
+          ? data.modifiedAt.value
+          : this.modifiedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Folder(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('modifiedAt: $modifiedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, sortOrder, modifiedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Folder &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.sortOrder == this.sortOrder &&
+          other.modifiedAt == this.modifiedAt);
+}
+
+class FoldersCompanion extends UpdateCompanion<Folder> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<int> sortOrder;
+  final Value<int?> modifiedAt;
+  final Value<int> rowid;
+  const FoldersCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  FoldersCompanion.insert({
+    required String id,
+    required String name,
+    this.sortOrder = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name);
+  static Insertable<Folder> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<int>? sortOrder,
+    Expression<int>? modifiedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (modifiedAt != null) 'modified_at': modifiedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  FoldersCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<int>? sortOrder,
+    Value<int?>? modifiedAt,
+    Value<int>? rowid,
+  }) {
+    return FoldersCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      sortOrder: sortOrder ?? this.sortOrder,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (modifiedAt.present) {
+      map['modified_at'] = Variable<int>(modifiedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FoldersCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('modifiedAt: $modifiedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TombstonesTable extends Tombstones
+    with TableInfo<$TombstonesTable, Tombstone> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TombstonesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [kind, id, deletedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'tombstones';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Tombstone> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_deletedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {kind, id};
+  @override
+  Tombstone map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Tombstone(
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      )!,
+    );
+  }
+
+  @override
+  $TombstonesTable createAlias(String alias) {
+    return $TombstonesTable(attachedDatabase, alias);
+  }
+}
+
+class Tombstone extends DataClass implements Insertable<Tombstone> {
+  /// 表名，如 conversations。
+  final String kind;
+  final String id;
+  final int deletedAt;
+  const Tombstone({
+    required this.kind,
+    required this.id,
+    required this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['kind'] = Variable<String>(kind);
+    map['id'] = Variable<String>(id);
+    map['deleted_at'] = Variable<int>(deletedAt);
+    return map;
+  }
+
+  TombstonesCompanion toCompanion(bool nullToAbsent) {
+    return TombstonesCompanion(
+      kind: Value(kind),
+      id: Value(id),
+      deletedAt: Value(deletedAt),
+    );
+  }
+
+  factory Tombstone.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Tombstone(
+      kind: serializer.fromJson<String>(json['kind']),
+      id: serializer.fromJson<String>(json['id']),
+      deletedAt: serializer.fromJson<int>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'kind': serializer.toJson<String>(kind),
+      'id': serializer.toJson<String>(id),
+      'deletedAt': serializer.toJson<int>(deletedAt),
+    };
+  }
+
+  Tombstone copyWith({String? kind, String? id, int? deletedAt}) => Tombstone(
+    kind: kind ?? this.kind,
+    id: id ?? this.id,
+    deletedAt: deletedAt ?? this.deletedAt,
+  );
+  Tombstone copyWithCompanion(TombstonesCompanion data) {
+    return Tombstone(
+      kind: data.kind.present ? data.kind.value : this.kind,
+      id: data.id.present ? data.id.value : this.id,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Tombstone(')
+          ..write('kind: $kind, ')
+          ..write('id: $id, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(kind, id, deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Tombstone &&
+          other.kind == this.kind &&
+          other.id == this.id &&
+          other.deletedAt == this.deletedAt);
+}
+
+class TombstonesCompanion extends UpdateCompanion<Tombstone> {
+  final Value<String> kind;
+  final Value<String> id;
+  final Value<int> deletedAt;
+  final Value<int> rowid;
+  const TombstonesCompanion({
+    this.kind = const Value.absent(),
+    this.id = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TombstonesCompanion.insert({
+    required String kind,
+    required String id,
+    required int deletedAt,
+    this.rowid = const Value.absent(),
+  }) : kind = Value(kind),
+       id = Value(id),
+       deletedAt = Value(deletedAt);
+  static Insertable<Tombstone> custom({
+    Expression<String>? kind,
+    Expression<String>? id,
+    Expression<int>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (kind != null) 'kind': kind,
+      if (id != null) 'id': id,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TombstonesCompanion copyWith({
+    Value<String>? kind,
+    Value<String>? id,
+    Value<int>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return TombstonesCompanion(
+      kind: kind ?? this.kind,
+      id: id ?? this.id,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TombstonesCompanion(')
+          ..write('kind: $kind, ')
+          ..write('id: $id, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3999,6 +4939,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ConversationsTable conversations = $ConversationsTable(this);
   late final $MessagesTable messages = $MessagesTable(this);
   late final $PromptsTable prompts = $PromptsTable(this);
+  late final $FoldersTable folders = $FoldersTable(this);
+  late final $TombstonesTable tombstones = $TombstonesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4011,6 +4953,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     conversations,
     messages,
     prompts,
+    folders,
+    tombstones,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -4048,6 +4992,7 @@ typedef $$ChannelsTableCreateCompanionBuilder = ChannelsCompanion Function({
   Value<bool> enabled,
   Value<int> sortOrder,
   required DateTime createdAt,
+  Value<int?> modifiedAt,
   Value<int> rowid,
 });
 typedef $$ChannelsTableUpdateCompanionBuilder = ChannelsCompanion Function({
@@ -4060,6 +5005,7 @@ typedef $$ChannelsTableUpdateCompanionBuilder = ChannelsCompanion Function({
   Value<bool> enabled,
   Value<int> sortOrder,
   Value<DateTime> createdAt,
+  Value<int?> modifiedAt,
   Value<int> rowid,
 });
 
@@ -4137,6 +5083,11 @@ class $$ChannelsTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4219,6 +5170,11 @@ class $$ChannelsTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ChannelsTableAnnotationComposer
@@ -4258,6 +5214,11 @@ class $$ChannelsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => column,
+  );
 
   Expression<T> modelRoutesRefs<T extends Object>(
     Expression<T> Function($$ModelRoutesTableAnnotationComposer a) f,
@@ -4322,6 +5283,7 @@ class $$ChannelsTableTableManager
                 Value<bool> enabled = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<int?> modifiedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChannelsCompanion(
                 id: id,
@@ -4333,6 +5295,7 @@ class $$ChannelsTableTableManager
                 enabled: enabled,
                 sortOrder: sortOrder,
                 createdAt: createdAt,
+                modifiedAt: modifiedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4346,6 +5309,7 @@ class $$ChannelsTableTableManager
                 Value<bool> enabled = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 required DateTime createdAt,
+                Value<int?> modifiedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChannelsCompanion.insert(
                 id: id,
@@ -4357,6 +5321,7 @@ class $$ChannelsTableTableManager
                 enabled: enabled,
                 sortOrder: sortOrder,
                 createdAt: createdAt,
+                modifiedAt: modifiedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -4425,6 +5390,7 @@ typedef $$ModelsTableCreateCompanionBuilder = ModelsCompanion Function({
   Value<int> sortOrder,
   Value<double?> inputPrice,
   Value<double?> outputPrice,
+  Value<int?> modifiedAt,
   Value<int> rowid,
 });
 typedef $$ModelsTableUpdateCompanionBuilder = ModelsCompanion Function({
@@ -4437,6 +5403,7 @@ typedef $$ModelsTableUpdateCompanionBuilder = ModelsCompanion Function({
   Value<int> sortOrder,
   Value<double?> inputPrice,
   Value<double?> outputPrice,
+  Value<int?> modifiedAt,
   Value<int> rowid,
 });
 
@@ -4514,6 +5481,11 @@ class $$ModelsTableFilterComposer
 
   ColumnFilters<double> get outputPrice => $composableBuilder(
     column: $table.outputPrice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4596,6 +5568,11 @@ class $$ModelsTableOrderingComposer
     column: $table.outputPrice,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ModelsTableAnnotationComposer
@@ -4641,6 +5618,11 @@ class $$ModelsTableAnnotationComposer
 
   GeneratedColumn<double> get outputPrice => $composableBuilder(
     column: $table.outputPrice,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
     builder: (column) => column,
   );
 
@@ -4707,6 +5689,7 @@ class $$ModelsTableTableManager
                 Value<int> sortOrder = const Value.absent(),
                 Value<double?> inputPrice = const Value.absent(),
                 Value<double?> outputPrice = const Value.absent(),
+                Value<int?> modifiedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ModelsCompanion(
                 id: id,
@@ -4718,6 +5701,7 @@ class $$ModelsTableTableManager
                 sortOrder: sortOrder,
                 inputPrice: inputPrice,
                 outputPrice: outputPrice,
+                modifiedAt: modifiedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4731,6 +5715,7 @@ class $$ModelsTableTableManager
                 Value<int> sortOrder = const Value.absent(),
                 Value<double?> inputPrice = const Value.absent(),
                 Value<double?> outputPrice = const Value.absent(),
+                Value<int?> modifiedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ModelsCompanion.insert(
                 id: id,
@@ -4742,6 +5727,7 @@ class $$ModelsTableTableManager
                 sortOrder: sortOrder,
                 inputPrice: inputPrice,
                 outputPrice: outputPrice,
+                modifiedAt: modifiedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -4809,6 +5795,7 @@ typedef $$ModelRoutesTableCreateCompanionBuilder =
       Value<int> weight,
       Value<int> priority,
       Value<bool> enabled,
+      Value<int?> modifiedAt,
       Value<int> rowid,
     });
 typedef $$ModelRoutesTableUpdateCompanionBuilder =
@@ -4820,6 +5807,7 @@ typedef $$ModelRoutesTableUpdateCompanionBuilder =
       Value<int> weight,
       Value<int> priority,
       Value<bool> enabled,
+      Value<int?> modifiedAt,
       Value<int> rowid,
     });
 
@@ -4893,6 +5881,11 @@ class $$ModelRoutesTableFilterComposer
 
   ColumnFilters<bool> get enabled => $composableBuilder(
     column: $table.enabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4977,6 +5970,11 @@ class $$ModelRoutesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ModelsTableOrderingComposer get modelId {
     final $$ModelsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -5049,6 +6047,11 @@ class $$ModelRoutesTableAnnotationComposer
 
   GeneratedColumn<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => column);
+
+  GeneratedColumn<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => column,
+  );
 
   $$ModelsTableAnnotationComposer get modelId {
     final $$ModelsTableAnnotationComposer composer = $composerBuilder(
@@ -5132,6 +6135,7 @@ class $$ModelRoutesTableTableManager
                 Value<int> weight = const Value.absent(),
                 Value<int> priority = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
+                Value<int?> modifiedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ModelRoutesCompanion(
                 id: id,
@@ -5141,6 +6145,7 @@ class $$ModelRoutesTableTableManager
                 weight: weight,
                 priority: priority,
                 enabled: enabled,
+                modifiedAt: modifiedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5152,6 +6157,7 @@ class $$ModelRoutesTableTableManager
                 Value<int> weight = const Value.absent(),
                 Value<int> priority = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
+                Value<int?> modifiedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ModelRoutesCompanion.insert(
                 id: id,
@@ -5161,6 +6167,7 @@ class $$ModelRoutesTableTableManager
                 weight: weight,
                 priority: priority,
                 enabled: enabled,
+                modifiedAt: modifiedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -5247,6 +6254,7 @@ typedef $$AgentsTableCreateCompanionBuilder = AgentsCompanion Function({
   Value<String> systemPrompt,
   Value<String> paramsJson,
   Value<int> sortOrder,
+  Value<int?> modifiedAt,
   Value<int> rowid,
 });
 typedef $$AgentsTableUpdateCompanionBuilder = AgentsCompanion Function({
@@ -5257,6 +6265,7 @@ typedef $$AgentsTableUpdateCompanionBuilder = AgentsCompanion Function({
   Value<String> systemPrompt,
   Value<String> paramsJson,
   Value<int> sortOrder,
+  Value<int?> modifiedAt,
   Value<int> rowid,
 });
 
@@ -5301,6 +6310,11 @@ class $$AgentsTableFilterComposer
 
   ColumnFilters<int> get sortOrder => $composableBuilder(
     column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5348,6 +6362,11 @@ class $$AgentsTableOrderingComposer
     column: $table.sortOrder,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$AgentsTableAnnotationComposer
@@ -5383,6 +6402,11 @@ class $$AgentsTableAnnotationComposer
 
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => column,
+  );
 }
 
 class $$AgentsTableTableManager
@@ -5420,6 +6444,7 @@ class $$AgentsTableTableManager
                 Value<String> systemPrompt = const Value.absent(),
                 Value<String> paramsJson = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<int?> modifiedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AgentsCompanion(
                 id: id,
@@ -5429,6 +6454,7 @@ class $$AgentsTableTableManager
                 systemPrompt: systemPrompt,
                 paramsJson: paramsJson,
                 sortOrder: sortOrder,
+                modifiedAt: modifiedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5440,6 +6466,7 @@ class $$AgentsTableTableManager
                 Value<String> systemPrompt = const Value.absent(),
                 Value<String> paramsJson = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<int?> modifiedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AgentsCompanion.insert(
                 id: id,
@@ -5449,6 +6476,7 @@ class $$AgentsTableTableManager
                 systemPrompt: systemPrompt,
                 paramsJson: paramsJson,
                 sortOrder: sortOrder,
+                modifiedAt: modifiedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -5491,9 +6519,11 @@ typedef $$ConversationsTableCreateCompanionBuilder =
       Value<String> participantsJson,
       Value<bool> webSearch,
       Value<String> optionsJson,
+      Value<String?> folderId,
       Value<bool> pinned,
       required DateTime createdAt,
       required DateTime updatedAt,
+      Value<int?> modifiedAt,
       Value<int> rowid,
     });
 typedef $$ConversationsTableUpdateCompanionBuilder =
@@ -5505,9 +6535,11 @@ typedef $$ConversationsTableUpdateCompanionBuilder =
       Value<String> participantsJson,
       Value<bool> webSearch,
       Value<String> optionsJson,
+      Value<String?> folderId,
       Value<bool> pinned,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<int?> modifiedAt,
       Value<int> rowid,
     });
 
@@ -5583,6 +6615,11 @@ class $$ConversationsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get folderId => $composableBuilder(
+    column: $table.folderId,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get pinned => $composableBuilder(
     column: $table.pinned,
     builder: (column) => ColumnFilters(column),
@@ -5595,6 +6632,11 @@ class $$ConversationsTableFilterComposer
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5668,6 +6710,11 @@ class $$ConversationsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get folderId => $composableBuilder(
+    column: $table.folderId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get pinned => $composableBuilder(
     column: $table.pinned,
     builder: (column) => ColumnOrderings(column),
@@ -5680,6 +6727,11 @@ class $$ConversationsTableOrderingComposer
 
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -5720,6 +6772,9 @@ class $$ConversationsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get folderId =>
+      $composableBuilder(column: $table.folderId, builder: (column) => column);
+
   GeneratedColumn<bool> get pinned =>
       $composableBuilder(column: $table.pinned, builder: (column) => column);
 
@@ -5728,6 +6783,11 @@ class $$ConversationsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => column,
+  );
 
   Expression<T> messagesRefs<T extends Object>(
     Expression<T> Function($$MessagesTableAnnotationComposer a) f,
@@ -5790,9 +6850,11 @@ class $$ConversationsTableTableManager
                 Value<String> participantsJson = const Value.absent(),
                 Value<bool> webSearch = const Value.absent(),
                 Value<String> optionsJson = const Value.absent(),
+                Value<String?> folderId = const Value.absent(),
                 Value<bool> pinned = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<int?> modifiedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ConversationsCompanion(
                 id: id,
@@ -5802,9 +6864,11 @@ class $$ConversationsTableTableManager
                 participantsJson: participantsJson,
                 webSearch: webSearch,
                 optionsJson: optionsJson,
+                folderId: folderId,
                 pinned: pinned,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                modifiedAt: modifiedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5816,9 +6880,11 @@ class $$ConversationsTableTableManager
                 Value<String> participantsJson = const Value.absent(),
                 Value<bool> webSearch = const Value.absent(),
                 Value<String> optionsJson = const Value.absent(),
+                Value<String?> folderId = const Value.absent(),
                 Value<bool> pinned = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
+                Value<int?> modifiedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ConversationsCompanion.insert(
                 id: id,
@@ -5828,9 +6894,11 @@ class $$ConversationsTableTableManager
                 participantsJson: participantsJson,
                 webSearch: webSearch,
                 optionsJson: optionsJson,
+                folderId: folderId,
                 pinned: pinned,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                modifiedAt: modifiedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -6439,6 +7507,7 @@ typedef $$PromptsTableCreateCompanionBuilder = PromptsCompanion Function({
   required String title,
   required String content,
   Value<int> sortOrder,
+  Value<int?> modifiedAt,
   Value<int> rowid,
 });
 typedef $$PromptsTableUpdateCompanionBuilder = PromptsCompanion Function({
@@ -6446,6 +7515,7 @@ typedef $$PromptsTableUpdateCompanionBuilder = PromptsCompanion Function({
   Value<String> title,
   Value<String> content,
   Value<int> sortOrder,
+  Value<int?> modifiedAt,
   Value<int> rowid,
 });
 
@@ -6475,6 +7545,11 @@ class $$PromptsTableFilterComposer
 
   ColumnFilters<int> get sortOrder => $composableBuilder(
     column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6507,6 +7582,11 @@ class $$PromptsTableOrderingComposer
     column: $table.sortOrder,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$PromptsTableAnnotationComposer
@@ -6529,6 +7609,11 @@ class $$PromptsTableAnnotationComposer
 
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => column,
+  );
 }
 
 class $$PromptsTableTableManager
@@ -6563,12 +7648,14 @@ class $$PromptsTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<String> content = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<int?> modifiedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PromptsCompanion(
                 id: id,
                 title: title,
                 content: content,
                 sortOrder: sortOrder,
+                modifiedAt: modifiedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6577,12 +7664,14 @@ class $$PromptsTableTableManager
                 required String title,
                 required String content,
                 Value<int> sortOrder = const Value.absent(),
+                Value<int?> modifiedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PromptsCompanion.insert(
                 id: id,
                 title: title,
                 content: content,
                 sortOrder: sortOrder,
+                modifiedAt: modifiedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -6616,6 +7705,356 @@ typedef $$PromptsTableProcessedTableManager =
       Prompt,
       PrefetchHooks Function()
     >;
+typedef $$FoldersTableCreateCompanionBuilder = FoldersCompanion Function({
+  required String id,
+  required String name,
+  Value<int> sortOrder,
+  Value<int?> modifiedAt,
+  Value<int> rowid,
+});
+typedef $$FoldersTableUpdateCompanionBuilder = FoldersCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<int> sortOrder,
+  Value<int?> modifiedAt,
+  Value<int> rowid,
+});
+
+class $$FoldersTableFilterComposer
+    extends Composer<_$AppDatabase, $FoldersTable> {
+  $$FoldersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$FoldersTableOrderingComposer
+    extends Composer<_$AppDatabase, $FoldersTable> {
+  $$FoldersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$FoldersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FoldersTable> {
+  $$FoldersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<int> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$FoldersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FoldersTable,
+          Folder,
+          $$FoldersTableFilterComposer,
+          $$FoldersTableOrderingComposer,
+          $$FoldersTableAnnotationComposer,
+          $$FoldersTableCreateCompanionBuilder,
+          $$FoldersTableUpdateCompanionBuilder,
+          (Folder, BaseReferences<_$AppDatabase, $FoldersTable, Folder>),
+          Folder,
+          PrefetchHooks Function()
+        > {
+  $$FoldersTableTableManager(_$AppDatabase db, $FoldersTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FoldersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FoldersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FoldersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int?> modifiedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FoldersCompanion(
+                id: id,
+                name: name,
+                sortOrder: sortOrder,
+                modifiedAt: modifiedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<int> sortOrder = const Value.absent(),
+                Value<int?> modifiedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FoldersCompanion.insert(
+                id: id,
+                name: name,
+                sortOrder: sortOrder,
+                modifiedAt: modifiedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$FoldersTable, Folder>(table),
+                  BaseReferences<_$AppDatabase, $FoldersTable, Folder>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$FoldersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FoldersTable,
+      Folder,
+      $$FoldersTableFilterComposer,
+      $$FoldersTableOrderingComposer,
+      $$FoldersTableAnnotationComposer,
+      $$FoldersTableCreateCompanionBuilder,
+      $$FoldersTableUpdateCompanionBuilder,
+      (Folder, BaseReferences<_$AppDatabase, $FoldersTable, Folder>),
+      Folder,
+      PrefetchHooks Function()
+    >;
+typedef $$TombstonesTableCreateCompanionBuilder = TombstonesCompanion Function({
+  required String kind,
+  required String id,
+  required int deletedAt,
+  Value<int> rowid,
+});
+typedef $$TombstonesTableUpdateCompanionBuilder = TombstonesCompanion Function({
+  Value<String> kind,
+  Value<String> id,
+  Value<int> deletedAt,
+  Value<int> rowid,
+});
+
+class $$TombstonesTableFilterComposer
+    extends Composer<_$AppDatabase, $TombstonesTable> {
+  $$TombstonesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TombstonesTableOrderingComposer
+    extends Composer<_$AppDatabase, $TombstonesTable> {
+  $$TombstonesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TombstonesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TombstonesTable> {
+  $$TombstonesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$TombstonesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TombstonesTable,
+          Tombstone,
+          $$TombstonesTableFilterComposer,
+          $$TombstonesTableOrderingComposer,
+          $$TombstonesTableAnnotationComposer,
+          $$TombstonesTableCreateCompanionBuilder,
+          $$TombstonesTableUpdateCompanionBuilder,
+          (
+            Tombstone,
+            BaseReferences<_$AppDatabase, $TombstonesTable, Tombstone>,
+          ),
+          Tombstone,
+          PrefetchHooks Function()
+        > {
+  $$TombstonesTableTableManager(_$AppDatabase db, $TombstonesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TombstonesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TombstonesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TombstonesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> kind = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<int> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TombstonesCompanion(
+                kind: kind,
+                id: id,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String kind,
+                required String id,
+                required int deletedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => TombstonesCompanion.insert(
+                kind: kind,
+                id: id,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$TombstonesTable, Tombstone>(table),
+                  BaseReferences<_$AppDatabase, $TombstonesTable, Tombstone>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TombstonesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TombstonesTable,
+      Tombstone,
+      $$TombstonesTableFilterComposer,
+      $$TombstonesTableOrderingComposer,
+      $$TombstonesTableAnnotationComposer,
+      $$TombstonesTableCreateCompanionBuilder,
+      $$TombstonesTableUpdateCompanionBuilder,
+      (Tombstone, BaseReferences<_$AppDatabase, $TombstonesTable, Tombstone>),
+      Tombstone,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6634,4 +8073,8 @@ class $AppDatabaseManager {
       $$MessagesTableTableManager(_db, _db.messages);
   $$PromptsTableTableManager get prompts =>
       $$PromptsTableTableManager(_db, _db.prompts);
+  $$FoldersTableTableManager get folders =>
+      $$FoldersTableTableManager(_db, _db.folders);
+  $$TombstonesTableTableManager get tombstones =>
+      $$TombstonesTableTableManager(_db, _db.tombstones);
 }

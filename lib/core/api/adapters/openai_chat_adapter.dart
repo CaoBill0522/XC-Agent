@@ -10,28 +10,49 @@ class OpenAIChatAdapter extends ProtocolAdapter {
 
   @override
   Map<String, dynamic> buildBody(ChatRequest req) {
+    // DeepSeek 思考模式下调用工具，要把本轮的 reasoning_content 一起带回。
+    final deepseek = req.presetId == 'deepseek';
     final messages = <Map<String, dynamic>>[
       if (req.system case final s? when s.trim().isNotEmpty)
         {'role': 'system', 'content': s},
       for (final t in req.turns)
-        {
-          'role': t.role,
-          'content': t.images.isEmpty && t.files.isEmpty
-              ? t.text
-              : [
-                  if (t.text.isNotEmpty) {'type': 'text', 'text': t.text},
-                  for (final img in t.images)
-                    {
-                      'type': 'image_url',
-                      'image_url': {'url': img.dataUrl},
-                    },
-                  for (final f in t.files)
-                    {
-                      'type': 'file',
-                      'file': {'filename': f.name, 'file_data': f.dataUrl},
-                    },
-                ],
-        },
+        if (t.role == 'tool')
+          for (final r in t.toolResults)
+            {'role': 'tool', 'tool_call_id': r.callId, 'content': r.content}
+        else if (t.toolCalls.isNotEmpty)
+          {
+            'role': 'assistant',
+            'content': t.text.isEmpty ? null : t.text,
+            if (deepseek && (t.thinking?.isNotEmpty ?? false))
+              'reasoning_content': t.thinking,
+            'tool_calls': [
+              for (final c in t.toolCalls)
+                {
+                  'id': c.id,
+                  'type': 'function',
+                  'function': {'name': c.name, 'arguments': c.arguments},
+                },
+            ],
+          }
+        else
+          {
+            'role': t.role,
+            'content': t.images.isEmpty && t.files.isEmpty
+                ? t.text
+                : [
+                    if (t.text.isNotEmpty) {'type': 'text', 'text': t.text},
+                    for (final img in t.images)
+                      {
+                        'type': 'image_url',
+                        'image_url': {'url': img.dataUrl},
+                      },
+                    for (final f in t.files)
+                      {
+                        'type': 'file',
+                        'file': {'filename': f.name, 'file_data': f.dataUrl},
+                      },
+                  ],
+          },
     ];
 
     final effort = req.params.reasoning;
@@ -46,12 +67,22 @@ class OpenAIChatAdapter extends ProtocolAdapter {
           effort != ReasoningEffort.auto &&
           effort != ReasoningEffort.off)
         'reasoning_effort': effort.id,
-      if (req.webSearch && req.presetId == 'zhipu')
+      if ((req.webSearch && req.presetId == 'zhipu') || req.tools.isNotEmpty)
         'tools': [
-          {
-            'type': 'web_search',
-            'web_search': {'enable': true, 'search_result': true},
-          },
+          if (req.webSearch && req.presetId == 'zhipu')
+            {
+              'type': 'web_search',
+              'web_search': {'enable': true, 'search_result': true},
+            },
+          for (final t in req.tools)
+            {
+              'type': 'function',
+              'function': {
+                'name': t.name,
+                'description': t.description,
+                'parameters': t.parameters,
+              },
+            },
         ],
       if (req.webSearch && req.presetId != 'zhipu')
         'web_search_options': <String, dynamic>{},
@@ -111,6 +142,20 @@ class OpenAIChatAdapter extends ProtocolAdapter {
             if (c is Map && c['type'] == 'text' && c['text'] is String) {
               yield TextDelta(c['text'] as String);
             }
+          }
+        }
+
+        // 工具调用：流式时按 index 分段到达，非流式时一次给全。
+        if (d['tool_calls'] case final List calls) {
+          for (final (i, c) in calls.indexed) {
+            if (c is! Map) continue;
+            final f = c['function'] as Map?;
+            yield ToolCallDelta(
+              index: (c['index'] as num?)?.toInt() ?? i,
+              id: c['id'] as String?,
+              name: f?['name'] as String?,
+              arguments: f?['arguments'] as String? ?? '',
+            );
           }
         }
 

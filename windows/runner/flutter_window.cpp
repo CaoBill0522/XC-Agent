@@ -2,7 +2,13 @@
 
 #include <optional>
 
+#include <flutter/standard_method_codec.h>
+
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+constexpr int kHotkeyId = 0x5843;
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -27,6 +33,35 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  quick_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "cn.oxoz.agent/quick",
+          &flutter::StandardMethodCodec::GetInstance());
+  quick_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+                 result) {
+        if (call.method_name() == "setHotkey") {
+          bool on = true;
+          if (const auto* args =
+                  std::get_if<flutter::EncodableMap>(call.arguments())) {
+            auto it = args->find(flutter::EncodableValue("enabled"));
+            if (it != args->end()) {
+              if (const auto* b = std::get_if<bool>(&it->second)) on = *b;
+            }
+          }
+          HWND hwnd = GetHandle();
+          UnregisterHotKey(hwnd, kHotkeyId);
+          bool ok = !on || RegisterHotKey(hwnd, kHotkeyId,
+                                          MOD_ALT | MOD_NOREPEAT, VK_SPACE);
+          result->Success(flutter::EncodableValue(ok));
+        } else if (call.method_name() == "takePending") {
+          result->Success();
+        } else {
+          result->NotImplemented();
+        }
+      });
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
   });
@@ -40,6 +75,8 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  UnregisterHotKey(GetHandle(), kHotkeyId);
+  quick_channel_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -64,6 +101,15 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   switch (message) {
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
+      break;
+    case WM_HOTKEY:
+      if (wparam == kHotkeyId) {
+        if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
+        ShowWindow(hwnd, SW_SHOW);
+        SetForegroundWindow(hwnd);
+        if (quick_channel_) quick_channel_->InvokeMethod("hotkey", nullptr);
+        return 0;
+      }
       break;
   }
 

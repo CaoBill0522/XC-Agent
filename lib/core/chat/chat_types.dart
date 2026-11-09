@@ -24,6 +24,14 @@ sealed class ContentPart {
         (j['size'] as num?)?.toInt() ?? 0,
       ),
       'context' => ContextPart(j['text'] as String? ?? ''),
+      'tool' => ToolCallPart(
+        id: j['id'] as String? ?? '',
+        name: j['name'] as String? ?? '',
+        label: j['label'] as String?,
+        arguments: j['args'] as String? ?? '{}',
+        result: j['result'] as String?,
+        isError: j['error'] == true,
+      ),
       _ => null,
     };
   }
@@ -126,6 +134,56 @@ class ContextPart extends ContentPart {
   Map<String, dynamic> toJson() => {'type': 'context', 'text': text};
 }
 
+/// 回答过程中的一次工具调用（参数和结果），只用于展示，不进后续上下文。
+class ToolCallPart extends ContentPart {
+  const ToolCallPart({
+    required this.id,
+    required this.name,
+    required this.arguments,
+    this.label,
+    this.result,
+    this.isError = false,
+  });
+
+  final String id;
+
+  /// 发给模型的工具名。
+  final String name;
+
+  /// 给用户看的名字（如「读取网页」）。
+  final String? label;
+
+  /// 参数 JSON。
+  final String arguments;
+
+  /// 结果；null 表示还在执行。
+  final String? result;
+  final bool isError;
+
+  bool get running => result == null;
+
+  ToolCallPart withResult(String result, {bool isError = false}) =>
+      ToolCallPart(
+        id: id,
+        name: name,
+        label: label,
+        arguments: arguments,
+        result: result,
+        isError: isError,
+      );
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'tool',
+    'id': id,
+    'name': name,
+    'label': ?label,
+    'args': arguments,
+    'result': ?result,
+    if (isError) 'error': true,
+  };
+}
+
 extension ContentPartsX on List<ContentPart> {
   String get text => whereType<TextPart>().map((p) => p.text).join();
   String get thinking => whereType<ThinkingPart>().map((p) => p.text).join();
@@ -133,6 +191,7 @@ extension ContentPartsX on List<ContentPart> {
   List<CitationPart> get citations => whereType<CitationPart>().toList();
   List<NoticePart> get notices => whereType<NoticePart>().toList();
   List<FilePart> get files => whereType<FilePart>().toList();
+  List<ToolCallPart> get toolCalls => whereType<ToolCallPart>().toList();
   String? get quote => whereType<QuotePart>().firstOrNull?.text;
   String? get contextSummary => whereType<ContextPart>().firstOrNull?.text;
 
@@ -165,15 +224,81 @@ class ChatTurn {
     required this.text,
     this.images = const [],
     this.files = const [],
+    this.toolCalls = const [],
+    this.toolResults = const [],
+    this.thinking,
+    this.thinkingSignature,
   });
 
-  /// user / assistant
+  /// user / assistant / tool（工具执行结果，只出现在一次回答的工具调用循环里）
   final String role;
   final String text;
   final List<InlineImage> images;
 
   /// 原样发送给模型的文件（目前是 PDF）；文本类文件已并入 [text]。
   final List<InlineFile> files;
+
+  /// assistant：本轮模型要求调用的工具。
+  final List<ToolCall> toolCalls;
+
+  /// tool：工具执行结果。
+  final List<ToolResult> toolResults;
+
+  /// assistant：本轮的思考内容和签名（Anthropic 开启思考时调用工具，
+  /// 下一轮必须原样带回带签名的思考块）。
+  final String? thinking;
+  final String? thinkingSignature;
+}
+
+/// 提供给模型的工具定义（JSON Schema 参数）。
+class ToolSpec {
+  const ToolSpec({
+    required this.name,
+    required this.description,
+    required this.parameters,
+  });
+
+  final String name;
+  final String description;
+  final Map<String, dynamic> parameters;
+}
+
+/// 模型发起的一次工具调用。
+class ToolCall {
+  const ToolCall({
+    required this.id,
+    required this.name,
+    required this.arguments,
+  });
+
+  final String id;
+  final String name;
+
+  /// 参数 JSON 字符串。
+  final String arguments;
+
+  Map<String, dynamic> get argumentsMap {
+    try {
+      final j = jsonDecode(arguments.isEmpty ? '{}' : arguments);
+      return j is Map<String, dynamic> ? j : {};
+    } catch (_) {
+      return {};
+    }
+  }
+}
+
+class ToolResult {
+  const ToolResult({
+    required this.callId,
+    required this.name,
+    required this.content,
+    this.isError = false,
+  });
+
+  final String callId;
+  final String name;
+  final String content;
+  final bool isError;
 }
 
 class InlineFile {
@@ -255,7 +380,20 @@ class ChatRequest {
     this.webSearch = false,
     this.reasoningCapable = false,
     this.presetId = 'custom',
+    this.tools = const [],
   });
+
+  ChatRequest copyWith({List<ChatTurn>? turns, List<ToolSpec>? tools}) =>
+      ChatRequest(
+        model: model,
+        turns: turns ?? this.turns,
+        system: system,
+        params: params,
+        webSearch: webSearch,
+        reasoningCapable: reasoningCapable,
+        presetId: presetId,
+        tools: tools ?? this.tools,
+      );
 
   /// 上游模型名。
   final String model;
@@ -269,6 +407,9 @@ class ChatRequest {
 
   /// 渠道预设，用于厂商特有参数（如智谱的联网工具）。
   final String presetId;
+
+  /// 可调用的函数工具。
+  final List<ToolSpec> tools;
 }
 
 /// 流式输出事件。
@@ -297,6 +438,27 @@ class ImageEvent extends ChatEvent {
   const ImageEvent(this.base64, this.mime);
   final String base64;
   final String mime;
+}
+
+/// 工具调用片段：同一 [index] 的片段拼成一次完整调用（OpenAI Chat 流式时
+/// 参数是一段段来的；Responses / Anthropic 一次给全或按块给）。
+class ToolCallDelta extends ChatEvent {
+  const ToolCallDelta({
+    required this.index,
+    this.id,
+    this.name,
+    this.arguments = '',
+  });
+  final int index;
+  final String? id;
+  final String? name;
+  final String arguments;
+}
+
+/// Anthropic 思考块的签名。
+class ThinkingSignatureEvent extends ChatEvent {
+  const ThinkingSignatureEvent(this.signature);
+  final String signature;
 }
 
 class UsageEvent extends ChatEvent {

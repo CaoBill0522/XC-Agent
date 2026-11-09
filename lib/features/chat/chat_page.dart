@@ -7,6 +7,7 @@ import '../../core/api/adapters/adapter.dart';
 import '../../core/api/api_error.dart';
 import '../../core/api/protocol.dart';
 import '../../core/chat/conversation_mode.dart';
+import '../../core/models/capabilities.dart';
 import '../../core/chat/participant.dart';
 import '../../data/chat_service.dart';
 import '../../data/image_store.dart';
@@ -83,9 +84,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _focusId = ref.read(pendingFocusProvider).take(widget.conversationId);
     final draft = ref.read(pendingDraftsProvider).take(widget.conversationId);
     if (draft != null) {
-      _isFollowUp = true;
+      _isFollowUp = draft.isFollowUp;
       _input.quote = draft.quote;
       _input.setSummary(draft.summary);
+      _input.draftText = draft.text;
     }
   }
 
@@ -238,6 +240,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             ),
           );
     });
+    // 纯生图模型：输入栏的联网按钮换成画幅选择。
+    final imageModel =
+        participants.isNotEmpty &&
+        participants.every((p) {
+          final m = models.where((m) => m.model.id == p.modelId).firstOrNull;
+          return m != null &&
+              m.routes.isNotEmpty &&
+              m.routes.every(
+                (r) =>
+                    inferModelProfile(r.route.upstreamModel).kind ==
+                    ModelKind.image,
+              );
+        });
     final items = ChatItem.group(messages);
     if (_focusId != null && messagesAsync.hasValue && !_focusStarted) {
       _focusStarted = true;
@@ -318,6 +333,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             controller: _input,
             generating: generating,
             webSearchSupported: webSupported,
+            imageModel: imageModel,
             hasParticipants: participants.isNotEmpty,
             onError: _toast,
           ),
