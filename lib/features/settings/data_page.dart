@@ -32,18 +32,16 @@ class _DataPageState extends ConsumerState<DataPage> {
     super.dispose();
   }
 
-  Future<void> _export(bool withKeys) async {
-    if (withKeys &&
-        !await showConfirm(
-          context,
-          title: tr('包含 API Key？'),
-          message: tr('API Key 会以明文复制到剪贴板，请只粘贴到你信任的地方，用完及时清除。'),
-          confirmText: tr('继续'),
-        )) {
+  Future<void> _export() async {
+    if (!await showConfirm(
+      context,
+      title: tr('导出配置'),
+      message: tr('导出内容包含 API Key，只是做了编码、没有加密，任何人拿到都能解开。请只粘贴到你信任的地方，用完及时清除。'),
+      confirmText: tr('继续'),
+    )) {
       return;
     }
-    final json = await _transfer.export(includeKeys: withKeys);
-    await Clipboard.setData(ClipboardData(text: json));
+    await Clipboard.setData(ClipboardData(text: await _transfer.export()));
     _snackbar.showSnackbar(tr('配置已复制到剪贴板'));
   }
 
@@ -89,13 +87,8 @@ class _DataPageState extends ConsumerState<DataPage> {
           children: [
             MiuixArrowPreference(
               title: tr('导出到剪贴板'),
-              summary: tr('不含 API Key'),
-              onClick: () => _export(false),
-            ),
-            MiuixArrowPreference(
-              title: tr('导出到剪贴板（含 API Key）'),
-              summary: tr('用于迁移到另一台设备'),
-              onClick: () => _export(true),
+              summary: tr('含 API Key，用于迁移到另一台设备'),
+              onClick: _export,
             ),
             MiuixArrowPreference(
               title: tr('从剪贴板导入'),

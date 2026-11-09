@@ -98,8 +98,6 @@ const enStrings = <String, String>{
   '动态取色 (Monet)': 'Dynamic color (Monet)',
   '用主题色生成整套配色': 'Generate the whole color scheme from the theme color',
   '主题色': 'Theme color',
-  '包含 API Key？': 'Include API keys?',
-  'API Key 会以明文复制到剪贴板，请只粘贴到你信任的地方，用完及时清除。': 'API keys will be copied to the clipboard in plain text. Only paste them somewhere you trust, and clear them afterwards.',
   '继续': 'Continue',
   '配置已复制到剪贴板': 'Configuration copied to the clipboard',
   '剪贴板是空的': 'The clipboard is empty',
@@ -111,9 +109,6 @@ const enStrings = <String, String>{
   '数据': 'Data',
   '配置迁移（渠道、模型、助手）': 'Move configuration (channels, models, assistants)',
   '导出到剪贴板': 'Export to clipboard',
-  '不含 API Key': 'Without API keys',
-  '导出到剪贴板（含 API Key）': 'Export to clipboard (with API keys)',
-  '用于迁移到另一台设备': 'For moving to another device',
   '从剪贴板导入': 'Import from clipboard',
   '同 ID 的配置会被覆盖': 'Items with the same ID will be overwritten',
   '数据默认只保存在本机：对话在本地数据库，API Key 在系统钥匙串。打开 iCloud 同步后，对话和配置会存进你自己的 iCloud 云盘（App 专用目录），在登录同一 Apple 账户的 iPhone、iPad、Mac 之间同步；API Key 只有打开「同步 API Key」才会通过 iCloud 钥匙串同步。除此之外不会上传到任何服务器（除了你配置的模型接口）。': 'By default your data stays on this device: chats in a local database, API keys in the system keychain. With iCloud sync on, chats and settings are stored in your own iCloud Drive (in an app-only folder) and synced between the iPhone, iPad and Mac signed in to the same Apple Account. API keys sync through iCloud Keychain only if you turn on "Sync API keys". Nothing is uploaded anywhere else, apart from the model APIs you configure.',
@@ -492,8 +487,6 @@ const enStrings = <String, String>{
   '对话较长，已自动把早期内容压缩成摘要':
       'This chat is long, so earlier messages were compressed into a summary',
   '工具调用轮数达到上限，已停止': 'Stopped after reaching the tool-call limit',
-  '剪贴板内容不是有效的配置 JSON':
-      'The clipboard doesn\'t contain valid configuration JSON',
   '不是本应用导出的配置': 'This configuration wasn\'t exported by this app',
   '已导入 {0} 个渠道（含 {1} 个 Key）、{2} 个模型、{3} 个助手':
       'Imported {0} channels ({1} with keys), {2} models, {3} assistants',
@@ -586,4 +579,8 @@ const enStrings = <String, String>{
   '打开链接、快捷入口': 'Opening links, quick actions',
   '粘贴和拖入图片': 'Pasting and dropping images',
   '版本、项目主页、版权与鸣谢': 'Version, project links, copyright and credits',
+  '导出配置': 'Export configuration',
+  '导出内容包含 API Key，只是做了编码、没有加密，任何人拿到都能解开。请只粘贴到你信任的地方，用完及时清除。': 'The export includes your API keys. It is only encoded, not encrypted, so anyone who gets it can decode it. Only paste it somewhere you trust, and clear it afterwards.',
+  '含 API Key，用于迁移到另一台设备': 'Includes API keys, for moving to another device',
+  '剪贴板内容不是有效的配置': 'The clipboard doesn\'t contain a valid configuration',
 };

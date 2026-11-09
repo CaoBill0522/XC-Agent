@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show gzip;
 
 import 'db/app_database.dart';
 import 'secure/key_store.dart';
@@ -14,16 +15,19 @@ class ConfigTransfer {
   static const format = 'cn.oxoz.agent/config';
   static const version = 1;
 
-  Future<String> export({required bool includeKeys}) async {
+  /// 导出文本的前缀：后面是 gzip 压缩后的 JSON 再做 base64url 编码。
+  /// 这只是编码（防止一眼看到 Key、也更短），不是加密，任何人都能解开。
+  static const prefix = 'XCAGENT1:';
+
+  /// 导出全部配置（含 API Key），编码成一串文本。
+  Future<String> export() async {
     final channels = await _db.select(_db.channels).get();
     final keys = <String, String>{};
-    if (includeKeys) {
-      for (final c in channels) {
-        final k = await _keys.read(c.id);
-        if (k != null && k.isNotEmpty) keys[c.id] = k;
-      }
+    for (final c in channels) {
+      final k = await _keys.read(c.id);
+      if (k != null && k.isNotEmpty) keys[c.id] = k;
     }
-    return const JsonEncoder.withIndent('  ').convert({
+    final json = jsonEncode({
       'format': format,
       'version': version,
       'channels': [
@@ -39,16 +43,33 @@ class ConfigTransfer {
         for (final a in await _db.select(_db.agents).get()) a.toJson(),
       ],
     });
+    return prefix + base64Url.encode(gzip.encode(utf8.encode(json)));
+  }
+
+  /// 解码导出文本；也接受旧版直接导出的 JSON。
+  static Map<String, dynamic> decode(String text) {
+    final t = text.trim();
+    try {
+      final raw = t.startsWith(prefix)
+          ? utf8.decode(
+              gzip.decode(
+                base64Url.decode(
+                  base64Url.normalize(
+                    t.substring(prefix.length).replaceAll(RegExp(r'\s'), ''),
+                  ),
+                ),
+              ),
+            )
+          : t;
+      return jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      throw FormatException(tr('剪贴板内容不是有效的配置'));
+    }
   }
 
   /// 导入（按 ID 覆盖同名记录）。返回导入的条目数说明。
   Future<String> import(String text) async {
-    final Map<String, dynamic> json;
-    try {
-      json = jsonDecode(text) as Map<String, dynamic>;
-    } catch (_) {
-      throw FormatException(tr('剪贴板内容不是有效的配置 JSON'));
-    }
+    final json = decode(text);
     if (json['format'] != format) throw FormatException(tr('不是本应用导出的配置'));
 
     List<Map<String, dynamic>> list(String k) => [

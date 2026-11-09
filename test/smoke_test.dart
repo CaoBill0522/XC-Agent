@@ -903,7 +903,7 @@ void main() {
     await _open(tester, const AboutPage());
     expect(find.text('GitHub'), findsOneWidget);
     expect(find.text('agent.oxoz.cn'), findsOneWidget);
-    expect(find.text('© 2026 CaoBill0522'), findsOneWidget);
+    expect(find.text('© 2026 Jiacheng Cao'), findsOneWidget);
     expect(find.text('flutter_miuix'), findsOneWidget);
     expect(find.text('cn.oxoz.agent'), findsNothing);
     // 设置：应用锁开关。

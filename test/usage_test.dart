@@ -16,12 +16,7 @@ void main() {
       final now = DateTime.now();
       await db
           .into(db.models)
-          .insert(
-            ModelsCompanion.insert(
-              id: 'a',
-              displayName: 'A',
-            ),
-          );
+          .insert(ModelsCompanion.insert(id: 'a', displayName: 'A'));
       await db
           .into(db.models)
           .insert(ModelsCompanion.insert(id: 'b', displayName: 'B'));

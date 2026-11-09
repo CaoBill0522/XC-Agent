@@ -9,7 +9,7 @@ import '../../ui/settings_widgets.dart';
 
 const githubUrl = 'https://github.com/CaoBill0522/XCAgent';
 const websiteUrl = 'https://agent.oxoz.cn';
-const copyrightHolder = 'CaoBill0522';
+const copyrightHolder = 'Jiacheng Cao';
 const copyrightYear = 2026;
 
 /// 鸣谢：用到的主要开源项目（名称、用途、许可证、主页）。

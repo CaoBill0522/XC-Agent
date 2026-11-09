@@ -31,16 +31,15 @@ void main() {
       params: const GenParams(reasoning: ReasoningEffort.high),
     );
 
-    final noKey = await ConfigTransfer(
-      srcDb,
-      srcKeys,
-    ).export(includeKeys: false);
-    expect(noKey, isNot(contains('sk-secret')));
-    final withKey = await ConfigTransfer(
-      srcDb,
-      srcKeys,
-    ).export(includeKeys: true);
-    expect((jsonDecode(withKey) as Map)['channels'][0]['apiKey'], 'sk-secret');
+    final withKey = await ConfigTransfer(srcDb, srcKeys).export();
+    // 编码后的一串文本：看不到明文 Key，解码后带 Key。
+    expect(withKey, startsWith(ConfigTransfer.prefix));
+    expect(withKey, isNot(contains('sk-secret')));
+    expect(withKey, isNot(contains('\n')));
+    expect(
+      ConfigTransfer.decode(withKey)['channels'][0]['apiKey'],
+      'sk-secret',
+    );
 
     final dstDb = AppDatabase(NativeDatabase.memory());
     final dstKeys = MemoryKeyStore();
@@ -62,9 +61,20 @@ void main() {
       ReasoningEffort.high,
     );
 
-    // 重复导入不会重复插入。
-    await ConfigTransfer(dstDb, dstKeys).import(withKey);
+    // 重复导入不会重复插入；粘贴时被插进换行也能导入。
+    final wrapped = withKey.replaceAllMapped(
+      RegExp(r'.{40}'),
+      (m) => '${m[0]}\n',
+    );
+    await ConfigTransfer(dstDb, dstKeys).import(wrapped);
     expect(await dst.watchModels().first, hasLength(2));
+
+    // 旧版导出的明文 JSON 仍然可以导入。
+    final legacy = jsonEncode(ConfigTransfer.decode(withKey));
+    expect(
+      await ConfigTransfer(dstDb, dstKeys).import(legacy),
+      contains('1 个渠道'),
+    );
 
     expect(
       () => ConfigTransfer(dstDb, dstKeys).import('{"x":1}'),
@@ -72,6 +82,11 @@ void main() {
     );
     expect(
       () => ConfigTransfer(dstDb, dstKeys).import('not json'),
+      throwsFormatException,
+    );
+    expect(
+      () =>
+          ConfigTransfer(dstDb, dstKeys).import('${ConfigTransfer.prefix}abc'),
       throwsFormatException,
     );
 

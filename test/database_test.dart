@@ -126,15 +126,17 @@ void main() {
     final dir = await Directory.systemTemp.createTemp('migrate');
     final file = File('${dir.path}/agent.sqlite');
     var first = AppDatabase(NativeDatabase(file));
-    await first.into(first.channels).insert(
-      ChannelsCompanion.insert(
-        id: 'c',
-        name: 'n',
-        protocol: 'openai_chat',
-        baseUrl: 'https://x',
-        createdAt: DateTime(2026),
-      ),
-    );
+    await first
+        .into(first.channels)
+        .insert(
+          ChannelsCompanion.insert(
+            id: 'c',
+            name: 'n',
+            protocol: 'openai_chat',
+            baseUrl: 'https://x',
+            createdAt: DateTime(2026),
+          ),
+        );
     await first.customStatement('PRAGMA user_version = 3');
     await first.close();
 
