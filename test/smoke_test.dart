@@ -772,7 +772,8 @@ void main() {
     await _open(tester, const UsagePage());
     expect(find.text('近 30 天'), findsWidgets);
     expect(find.text('请求'), findsOneWidget);
-    expect(find.text('余额（DeepSeek 官方、New API / One API 中转站）'), findsOneWidget);
+    expect(find.textContaining('费用'), findsNothing);
+    expect(find.textContaining('余额'), findsNothing);
 
     await _open(tester, const PromptsPage());
     expect(find.text('翻译成英文'), findsOneWidget, reason: '内置提示词');

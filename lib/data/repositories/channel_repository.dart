@@ -283,11 +283,6 @@ class ChannelRepository {
     );
   }
 
-  /// 设置单价（每百万 token），null 表示未设置。
-  Future<void> setModelPrice(String id, {double? input, double? output}) =>
-      (_db.update(_db.models)..where((m) => m.id.equals(id))).write(
-        ModelsCompanion(inputPrice: Value(input), outputPrice: Value(output)),
-      );
 
   Future<void> setRouteStrategy(String modelId, String strategy) =>
       (_db.update(_db.models)..where((m) => m.id.equals(modelId))).write(

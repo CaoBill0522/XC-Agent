@@ -107,9 +107,6 @@ class _ModelDetailPageState extends ConsumerState<ModelDetailPage> {
 
   ChannelRepository get _repo => ref.read(channelRepositoryProvider);
 
-  static String _fmtPrice(double v) =>
-      v == v.roundToDouble() ? v.toStringAsFixed(0) : '$v';
-
   Future<void> _editNumber(
     BuildContext context,
     String title,
@@ -174,41 +171,6 @@ class _ModelDetailPageState extends ConsumerState<ModelDetailPage> {
               value: m.model.enabled,
               onChanged: (v) => _repo.updateModel(m.model.id, enabled: v),
             ),
-          ],
-        ),
-        SettingsGroup(
-          title: tr('单价（每百万 token，用于用量统计）'),
-          children: [
-            for (final (input, label) in [(true, tr('输入')), (false, tr('输出'))])
-              MiuixArrowPreference(
-                title: trArgs('{0}单价', [label]),
-                summary: switch (input
-                    ? m.model.inputPrice
-                    : m.model.outputPrice) {
-                  null => tr('未设置'),
-                  final v => _fmtPrice(v),
-                },
-                onClick: () async {
-                  final cur = input ? m.model.inputPrice : m.model.outputPrice;
-                  final v = await showTextInput(
-                    context,
-                    title: trArgs('{0}单价（每百万 token）', [label]),
-                    initial: cur == null ? '' : _fmtPrice(cur),
-                    label: tr('留空表示未设置'),
-                    autocorrect: false,
-                  );
-                  if (v == null) return;
-                  final price = double.tryParse(v.trim());
-                  if (v.trim().isNotEmpty && (price == null || price < 0)) {
-                    return;
-                  }
-                  await _repo.setModelPrice(
-                    m.model.id,
-                    input: input ? price : m.model.inputPrice,
-                    output: input ? m.model.outputPrice : price,
-                  );
-                },
-              ),
           ],
         ),
         SettingsGroup(

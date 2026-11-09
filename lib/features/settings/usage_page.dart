@@ -2,17 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/api/api_error.dart';
-import '../../core/api/channel_client.dart';
-import '../../data/db/app_database.dart';
 import '../../data/providers.dart';
 import '../../data/usage_service.dart';
 import '../../ui/motion.dart';
 import '../../ui/settings_widgets.dart';
-import '../models/models_page.dart';
 import '../../l10n/tr.dart';
-
-const _currencyKey = 'usage_currency';
 
 /// 统计区间。
 enum UsagePeriod {
@@ -37,7 +31,7 @@ final usageServiceProvider = Provider<UsageService>(
   (ref) => UsageService(ref.watch(databaseProvider)),
 );
 
-/// 用量统计：token 用量与按单价估算的费用；中转站 / DeepSeek 可查余额。
+/// 用量统计：请求次数和 token 用量，按模型、按渠道汇总。
 class UsagePage extends ConsumerStatefulWidget {
   const UsagePage({super.key});
 
@@ -48,8 +42,6 @@ class UsagePage extends ConsumerStatefulWidget {
 class _UsagePageState extends ConsumerState<UsagePage> {
   UsagePeriod _period = UsagePeriod.month;
   Future<UsageReport>? _report;
-  final _balances = <String, String>{};
-  final _loading = <String>{};
 
   @override
   void initState() {
@@ -63,50 +55,17 @@ class _UsagePageState extends ConsumerState<UsagePage> {
         .report(since: _period.since(DateTime.now()));
   }
 
-  String get _currency =>
-      ref.read(prefsProvider).getString(_currencyKey) ?? r'$';
-
-  String _money(double v) =>
-      '$_currency${v < 0.01 && v > 0 ? v.toStringAsFixed(4) : v.toStringAsFixed(2)}';
-
-  Future<void> _queryBalance(Channel c) async {
-    setState(() => _loading.add(c.id));
-    String text;
-    try {
-      final endpoint = await ref.read(channelRepositoryProvider).endpointFor(c);
-      text = await ref
-          .read(channelClientProvider)
-          .balance(endpoint, c.presetId);
-    } on ApiException catch (e) {
-      text = e.message;
-    } catch (e) {
-      text = trArgs('查询失败：{0}', [e]);
-    }
-    if (!mounted) return;
-    setState(() {
-      _loading.remove(c.id);
-      _balances[c.id] = text;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
-    final channels = ref.watch(channelsProvider).value ?? const [];
-    // 单价、模型变化后重新统计。
+    // 模型改名 / 删除后重新统计。
     ref.listen(modelsProvider, (_, _) => setState(_reload));
 
-    String detail(UsageTotal u) {
-      final cost = u.requests == u.unpriced
-          ? tr('未设置单价')
-          : '${_money(u.cost)}${u.unpriced > 0 ? '（部分未设单价）' : ''}';
-      return trArgs('{0} 次 · 输入 {1} · 输出 {2} · {3}', [
-        u.requests,
-        formatTokens(u.input),
-        formatTokens(u.output),
-        cost,
-      ]);
-    }
+    String detail(UsageTotal u) => trArgs('{0} 次 · 输入 {1} · 输出 {2}', [
+      u.requests,
+      formatTokens(u.input),
+      formatTokens(u.output),
+    ]);
 
     return SettingsScaffold(
       title: tr('用量统计'),
@@ -122,18 +81,6 @@ class _UsagePageState extends ConsumerState<UsagePage> {
                 _reload();
               }),
             ),
-            MiuixOverlayDropdownPreference(
-              title: tr('货币'),
-              summary: tr('模型单价使用的货币'),
-              items: [tr('美元 \$'), tr('人民币 ¥')],
-              selectedIndex: _currency == '¥' ? 1 : 0,
-              onSelectedIndexChange: (i) {
-                ref
-                    .read(prefsProvider)
-                    .setString(_currencyKey, i == 1 ? '¥' : r'$');
-                setState(() {});
-              },
-            ),
           ],
         ),
         FutureBuilder<UsageReport>(
@@ -147,25 +94,15 @@ class _UsagePageState extends ConsumerState<UsagePage> {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _Summary(
-                          total: r.total,
-                          money: _money,
-                          period: _period.label,
-                        ),
+                        _Summary(total: r.total, period: _period.label),
                         if (r.byModel.isNotEmpty)
                           SettingsGroup(
-                            title: tr('按模型（点击设置单价）'),
+                            title: tr('按模型'),
                             children: [
                               for (final row in r.byModel)
-                                MiuixArrowPreference(
+                                MiuixBasicComponent(
                                   title: row.label,
                                   summary: detail(row.usage),
-                                  onClick: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          ModelDetailPage(modelId: row.id),
-                                    ),
-                                  ),
                                 ),
                             ],
                           ),
@@ -185,31 +122,10 @@ class _UsagePageState extends ConsumerState<UsagePage> {
             );
           },
         ),
-        if (channels.any(
-          (c) => ChannelClient.supportsBalance(c.channel.presetId),
-        ))
-          SettingsGroup(
-            title: tr('余额（DeepSeek 官方、New API / One API 中转站）'),
-            children: [
-              for (final c in channels)
-                if (ChannelClient.supportsBalance(c.channel.presetId))
-                  MiuixBasicComponent(
-                    title: c.channel.name,
-                    summary: _loading.contains(c.channel.id)
-                        ? tr('查询中…')
-                        : _balances[c.channel.id] ?? tr('点击查询'),
-                    onClick: _loading.contains(c.channel.id)
-                        ? null
-                        : () => _queryBalance(c.channel),
-                  ),
-            ],
-          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 0, 28, 16),
           child: MiuixText(
-            tr(
-              '费用 = 输入 token × 输入单价 + 输出 token × 输出单价，单价在「模型」里按每百万 token 设置。只统计模型返回了用量的请求，仅供参考，以渠道账单为准。',
-            ),
+            tr('只统计模型返回了用量的请求，仅供参考。'),
             fontSize: 12,
             color: colors.onSurfaceVariantSummary,
           ),
@@ -220,14 +136,9 @@ class _UsagePageState extends ConsumerState<UsagePage> {
 }
 
 class _Summary extends StatelessWidget {
-  const _Summary({
-    required this.total,
-    required this.money,
-    required this.period,
-  });
+  const _Summary({required this.total, required this.period});
 
   final UsageTotal total;
-  final String Function(double) money;
   final String period;
 
   @override
@@ -252,12 +163,6 @@ class _Summary extends StatelessWidget {
               cell('${total.requests}', tr('请求')),
               cell(formatTokens(total.input), tr('输入')),
               cell(formatTokens(total.output), tr('输出')),
-              cell(
-                total.requests > 0 && total.requests == total.unpriced
-                    ? '—'
-                    : money(total.cost),
-                tr('费用'),
-              ),
             ],
           ),
         ),

@@ -912,7 +912,7 @@ class Model extends DataClass implements Insertable<Model> {
   final bool enabled;
   final int sortOrder;
 
-  /// 单价：每百万 token 的输入 / 输出价格（货币见设置），用于用量统计。（v5）
+  /// （v5 加入的单价，已不再使用；保留列以免再做一次迁移。）
   final double? inputPrice;
   final double? outputPrice;
 

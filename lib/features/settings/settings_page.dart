@@ -88,7 +88,7 @@ class SettingsPage extends ConsumerWidget {
           children: [
             MiuixArrowPreference(
               title: tr('用量统计'),
-              summary: tr('token 用量、费用估算、渠道余额'),
+              summary: tr('请求次数和 token 用量，按模型、渠道汇总'),
               startAction: icon(AppIcons.filter),
               onClick: () => push(const UsagePage()),
             ),

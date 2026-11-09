@@ -11,21 +11,10 @@ class UsageTotal {
   int input = 0;
   int output = 0;
 
-  /// 已设置单价部分的费用；有用量但没设置单价的请求数见 [unpriced]。
-  double cost = 0;
-  int unpriced = 0;
-
-  void add(int inTok, int outTok, Model? model) {
+  void add(int inTok, int outTok) {
     requests++;
     input += inTok;
     output += outTok;
-    final ip = model?.inputPrice;
-    final op = model?.outputPrice;
-    if (ip == null && op == null) {
-      unpriced++;
-    } else {
-      cost += inTok / 1e6 * (ip ?? 0) + outTok / 1e6 * (op ?? 0);
-    }
   }
 }
 
@@ -45,7 +34,7 @@ class UsageReport {
   final List<UsageRow> byChannel;
 }
 
-/// 用量统计：汇总助手回答里记录的 token 用量，按模型单价估算费用。
+/// 用量统计：汇总助手回答里记录的 token 用量。
 class UsageService {
   UsageService(this._db);
 
@@ -75,13 +64,13 @@ class UsageService {
       final (inTok, outTok) = parseUsage(m.usageJson);
       if (inTok == 0 && outTok == 0) continue;
       final model = models[m.modelId];
-      total.add(inTok, outTok, model);
+      total.add(inTok, outTok);
       final mk = m.modelId ?? '?';
       modelLabels[mk] = model?.displayName ?? m.upstreamModel ?? tr('已删除的模型');
-      byModel.putIfAbsent(mk, UsageTotal.new).add(inTok, outTok, model);
+      byModel.putIfAbsent(mk, UsageTotal.new).add(inTok, outTok);
       byChannel
           .putIfAbsent(m.channelId ?? '?', UsageTotal.new)
-          .add(inTok, outTok, model);
+          .add(inTok, outTok);
     }
 
     List<UsageRow> sorted(
