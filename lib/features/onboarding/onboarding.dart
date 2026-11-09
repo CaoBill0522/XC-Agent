@@ -213,9 +213,13 @@ class _Page extends StatelessWidget {
     required this.subtitle,
     this.items = const [],
     this.footer,
+    this.hero,
   });
 
   final MiuixVectorIcon icon;
+
+  /// 代替顶部图标显示的大图（欢迎页用 App 图标）。
+  final Widget? hero;
   final String title;
   final String subtitle;
   final List<(MiuixVectorIcon, String, String)> items;
@@ -230,16 +234,17 @@ class _Page extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 16),
-          Container(
-            width: 64,
-            height: 64,
-            alignment: Alignment.center,
-            decoration: ShapeDecoration(
-              color: colors.primary.withValues(alpha: 0.12),
-              shape: const MiuixSquircleBorder(cornerRadius: 18),
-            ),
-            child: MiuixIcon(vector: icon, size: 32, tint: colors.primary),
-          ),
+          hero ??
+              Container(
+                width: 64,
+                height: 64,
+                alignment: Alignment.center,
+                decoration: ShapeDecoration(
+                  color: colors.primary.withValues(alpha: 0.12),
+                  shape: const MiuixSquircleBorder(cornerRadius: 18),
+                ),
+                child: MiuixIcon(vector: icon, size: 32, tint: colors.primary),
+              ),
           const SizedBox(height: 24),
           MiuixText(
             title,
@@ -328,8 +333,27 @@ class _WelcomePage extends ConsumerWidget {
         ),
       ),
     );
+    final dark = MiuixTheme.of(context).brightness == Brightness.dark;
     return _Page(
       icon: AppIcons.messages,
+      hero: DecoratedBox(
+        decoration: ShapeDecoration(
+          shape: MiuixSquircleBorder(
+            cornerRadius: 20,
+            side: BorderSide(color: colors.dividerLine),
+          ),
+        ),
+        child: ClipPath(
+          clipper: const ShapeBorderClipper(
+            shape: MiuixSquircleBorder(cornerRadius: 20),
+          ),
+          child: Image.asset(
+            dark ? 'assets/brand/logo_dark.png' : 'assets/brand/logo_light.png',
+            width: 88,
+            height: 88,
+          ),
+        ),
+      ),
       title: tr('欢迎使用 XCAgent'),
       subtitle: tr(
         '用你自己的 API Key，在一个 App 里使用 GPT、Claude、Gemini、DeepSeek 等各家模型。',

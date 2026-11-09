@@ -102,6 +102,14 @@ flutter test --tags live --run-skipped       # 端到端测试（真实 HTTP + �
 
 消息里包含 `long` 时返回一段长 Markdown，便于检查排版。
 
+### 图标
+
+图标由 `tool/icon/make_icons.py` 生成（C 圆弧 + 神经网络节点组成的 X；浅色白底黑图形，深色黑底白图形），会写入 iOS（含深色 / 着色外观）、macOS、Android（自适应 + 主题图标）、Windows 和 `assets/brand/`。只依赖 macOS 自带的 swift：
+
+```bash
+python3 tool/icon/make_icons.py
+```
+
 ### 构建
 
 ```bash
