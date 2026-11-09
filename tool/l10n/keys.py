@@ -18,6 +18,7 @@ DYNAMIC_FILES = [
     'lib/features/lock/app_lock.dart',
     'lib/data/tool_service.dart',
     'lib/data/chat_service.dart',
+    'lib/features/settings/about_page.dart',
 ]
 
 

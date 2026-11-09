@@ -4,13 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/providers.dart';
 import '../../ui/app_icons.dart';
-import '../../ui/dialogs.dart';
 import '../../ui/settings_widgets.dart';
 import '../agents/agents_page.dart';
 import '../channels/channels_page.dart';
 import '../models/models_page.dart';
 import '../home/quick_entry.dart';
 import '../lock/app_lock.dart';
+import 'about_page.dart';
 import 'appearance_page.dart';
 import 'language_preference.dart';
 import 'data_page.dart';
@@ -109,23 +109,9 @@ class SettingsPage extends ConsumerWidget {
             ),
             MiuixArrowPreference(
               title: tr('关于'),
-              summary: 'cn.oxoz.agent',
+              summary: tr('版本、项目主页、版权与鸣谢'),
               startAction: icon(AppIcons.info),
-              onClick: () => showAppDialog<void>(
-                context,
-                title: 'XCAgent',
-                summary: tr(
-                  'cn.oxoz.agent\n\n支持 OpenAI / Anthropic 格式的多模型 AI 客户端。\n多渠道轮询 · 多 Agent 并问 · 识图与生图 · 原生联网搜索。\n\n数据默认只保存在本机（可选 iCloud 同步）。界面基于 flutter_miuix（Apache-2.0）。',
-                ),
-                content: (ctx, close) => Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: MiuixTextButton(
-                    tr('好'),
-                    onPressed: close,
-                    colors: MiuixButtonDefaults.buttonColorsPrimary(ctx),
-                  ),
-                ),
-              ),
+              onClick: () => push(const AboutPage()),
             ),
           ],
         ),

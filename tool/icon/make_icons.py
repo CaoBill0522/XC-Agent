@@ -92,4 +92,8 @@ for px, data in zip(win_sizes, pngs):
 with open(os.path.join(ROOT, 'windows/runner/resources/app_icon.ico'), 'wb') as f:
     f.write(ico + b''.join(pngs))
 shutil.rmtree(os.path.join(ROOT, 'build/icon_tmp'))
+
+# 关于页的 GitHub 标志（黑色 + 透明背景，界面里按主题着色）
+subprocess.run(['swift', os.path.join(HERE, 'svg2png.swift'), os.path.join(HERE, 'github-mark.svg'),
+                os.path.join(ROOT, 'assets/brand/github.png'), '144'], check=True)
 print('done')

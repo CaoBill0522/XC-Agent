@@ -6,6 +6,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import 'package:agent/features/settings/about_page.dart';
 import 'package:agent/features/settings/tools_page.dart';
 import 'package:agent/l10n/en.dart';
 import 'package:agent/features/onboarding/onboarding.dart';
@@ -879,6 +880,7 @@ void main() {
       const AgentEditPage(),
       const ToolsPage(),
       const McpServerPage(),
+      const AboutPage(),
     ]) {
       await _open(tester, page);
       await _open(tester, page, b: Brightness.dark);
@@ -897,6 +899,13 @@ void main() {
     // 数据：iCloud 同步分组（测试主机是 macOS）。
     await _open(tester, const DataPage());
     expect(find.text('通过 iCloud 同步'), findsOneWidget);
+    // 关于：链接、版权、鸣谢。
+    await _open(tester, const AboutPage());
+    expect(find.text('GitHub'), findsOneWidget);
+    expect(find.text('agent.oxoz.cn'), findsOneWidget);
+    expect(find.text('© 2026 CaoBill0522'), findsOneWidget);
+    expect(find.text('flutter_miuix'), findsOneWidget);
+    expect(find.text('cn.oxoz.agent'), findsNothing);
     // 设置：应用锁开关。
     await _open(tester, const SettingsPage());
     expect(find.text('应用锁'), findsOneWidget);
@@ -966,6 +975,7 @@ void main() {
       const McpServerPage(),
       const PromptsPage(),
       const UsagePage(),
+      const AboutPage(),
       ChannelEditPage(channelId: channelId),
       ModelDetailPage(modelId: modelId),
       AgentEditPage(agentId: agentId),
