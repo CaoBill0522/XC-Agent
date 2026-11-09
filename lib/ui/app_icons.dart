@@ -10,6 +10,9 @@ class AppIcons {
   static MiuixVectorIcon get add => _ext('add');
   static MiuixVectorIcon get back => _ext('back');
   static MiuixVectorIcon get send => _ext('send');
+
+  /// 发送图标的视觉居中修正：外框居中，但箭头尖、尾部宽，重心偏右约 8%。
+  static const sendOpticalShift = Offset(-0.05, 0);
   static MiuixVectorIcon get settings => _ext('settings');
   static MiuixVectorIcon get image => _ext('image');
   static MiuixVectorIcon get messages => _ext('messages');
@@ -79,7 +82,12 @@ class AppIconButton extends StatelessWidget {
     this.enabled = true,
     this.backgroundColor,
     this.extent = 40,
+    this.opticalShift = Offset.zero,
   });
+
+  /// 视觉居中修正（按图标尺寸的比例）：有些图形外框居中但「重心」偏一边，
+  /// 放进圆形底色里看起来不正，如发送图标重心偏右。
+  final Offset opticalShift;
 
   final MiuixVectorIcon icon;
 
@@ -99,7 +107,10 @@ class AppIconButton extends StatelessWidget {
       backgroundColor: backgroundColor,
       minWidth: extent,
       minHeight: extent,
-      child: MiuixIcon(vector: icon, size: size, tint: tint),
+      child: Transform.translate(
+        offset: opticalShift * size,
+        child: MiuixIcon(vector: icon, size: size, tint: tint),
+      ),
     );
   }
 }

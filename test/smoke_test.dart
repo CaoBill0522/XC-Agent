@@ -6,6 +6,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import 'package:agent/features/lock/app_lock.dart';
 import 'package:agent/features/settings/about_page.dart';
 import 'package:agent/features/settings/tools_page.dart';
 import 'package:agent/l10n/en.dart';
@@ -417,6 +418,20 @@ Future<void> _settle(WidgetTester tester) async {
     await tester.pump(const Duration(milliseconds: 60));
   }
   expect(tester.takeException(), isNull);
+  expectNoFallbackText(tester);
+}
+
+/// 文字没有 Material / DefaultTextStyle 祖先时，Flutter 用兜底样式画出
+/// 黄色双下划线（常见于 Overlay、MaterialApp.builder 里的内容）。
+void expectNoFallbackText(WidgetTester tester) {
+  final bad = <String>[];
+  for (final w in tester.allWidgets) {
+    if (w is RichText &&
+        w.text.style?.decorationColor == const Color(0xFFFFFF00)) {
+      bad.add(w.text.toPlainText());
+    }
+  }
+  expect(bad, isEmpty, reason: '这些文字缺少 Material 祖先，会显示黄色下划线');
 }
 
 Future<void> _open(
@@ -1021,6 +1036,36 @@ void main() {
     await _open(tester, const OnboardingGate(child: HomeShell()));
     expect(find.text('欢迎使用 XCAgent'), findsNothing);
     expect(find.text('XCAgent'), findsWidgets);
+    await _close(tester);
+  });
+
+  testWidgets('应用锁的锁屏和语音录音浮层：文字没有黄色下划线', (tester) async {
+    final prefs = await tester.runAsync(SharedPreferences.getInstance);
+    await prefs!.setBool('app_lock', true);
+    addTearDown(() => prefs.remove('app_lock'));
+    tester.view.physicalSize = const Size(402, 874);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          prefsProvider.overrideWithValue(prefs),
+          databaseProvider.overrideWithValue(db),
+          keyStoreProvider.overrideWithValue(keys),
+        ],
+        child: MiuixTheme(
+          data: MiuixThemeData.of(Brightness.light),
+          // 与 app.dart 一致：锁屏放在 MaterialApp.builder 里、Navigator 之上。
+          child: MaterialApp(
+            builder: (context, child) => AppLockGate(child: child!),
+            home: const SizedBox(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('解锁'), findsOneWidget);
+    expectNoFallbackText(tester);
     await _close(tester);
   });
 }

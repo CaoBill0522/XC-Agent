@@ -195,7 +195,9 @@ class _LockScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
-    return ColoredBox(
+    // 锁屏盖在 Navigator 之上（MaterialApp.builder 里），没有 Material 祖先：
+    // 不包一层的话文字会用 Flutter 的兜底样式（黄色双下划线）。
+    return Material(
       color: colors.surface,
       child: Center(
         child: Column(

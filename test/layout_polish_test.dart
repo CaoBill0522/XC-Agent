@@ -171,17 +171,15 @@ void main() {
     );
     expect((field.center.dy - send.center.dy).abs() < 1, isTrue);
     expect((field.center.dy - first.center.dy).abs() < 1, isTrue);
-    // 消息列表左右留白 16：发送键右边缘 = 440 - 16；左侧图标（24）的左边缘 = 16。
+    // 消息列表左右留白 16：发送键右边缘 = 440 - 16；左侧圆形按钮的左边缘 = 16。
     expect(
       (send.right - (440 - 16)).abs() < 0.5,
       isTrue,
       reason: 'send.right=${send.right}',
     );
-    expect(
-      (first.center.dx - 12 - 16).abs() < 0.5,
-      isTrue,
-      reason: 'first=$first',
-    );
+    expect((first.left - 16).abs() < 0.5, isTrue, reason: 'first=$first');
+    // 三个按钮都是同样大小的圆。
+    expect((first.width - send.width).abs() < 0.5, isTrue);
     await _dispose(tester);
     controller.dispose();
   });

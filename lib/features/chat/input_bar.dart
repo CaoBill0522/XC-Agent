@@ -366,8 +366,10 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 
     // 输入框与按钮统一高度，单行时三者垂直居中对齐；多行时按钮贴底。
     const control = 44.0;
-    // 无背景的图标按钮：图标比按钮小 20，左移半边让图标与消息左边缘对齐。
-    const iconInset = (control - 24) / 2;
+    // 左侧圆形按钮的底色与输入框一致；开启状态（联网、指定画幅）用主色浅底。
+    final toolBg = MiuixTextFieldDefaults.textFieldColors(context)
+        .backgroundColor;
+    final activeBg = colors.primary.withValues(alpha: 0.14);
 
     return LayoutBuilder(
       builder: (context, box) {
@@ -474,35 +476,43 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                       ),
               ),
               Padding(
-                padding: EdgeInsets.only(
-                  left: gutter - iconInset,
-                  right: gutter,
-                ),
+                padding: EdgeInsets.only(left: gutter, right: gutter),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     AppIconButton(
                       icon: AppIcons.upload,
                       extent: control,
+                      size: 22,
                       tint: colors.onSurfaceVariantActions,
+                      backgroundColor: toolBg,
                       onPressed: _pick,
                     ),
+                    const SizedBox(width: 8),
                     if (widget.imageModel)
                       AppIconButton(
                         icon: AppIcons.tune,
                         extent: control,
+                        size: 22,
                         tint: options.imageRatio != null
                             ? colors.primary
                             : colors.onSurfaceVariantActions,
+                        backgroundColor: options.imageRatio != null
+                            ? activeBg
+                            : toolBg,
                         onPressed: () => _pickRatio(options),
                       )
                     else
                       AppIconButton(
                         icon: AppIcons.world,
                         extent: control,
+                        size: 22,
                         tint: webOn && widget.webSearchSupported
                             ? colors.primary
                             : colors.onSurfaceVariantActions,
+                        backgroundColor: webOn && widget.webSearchSupported
+                            ? activeBg
+                            : toolBg,
                         onPressed: () {
                           if (!widget.webSearchSupported) {
                             widget.onError(tr('当前模型 / 渠道不支持原生联网搜索'));
@@ -514,7 +524,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                           widget.onError(webOn ? tr('已关闭联网搜索') : tr('已开启联网搜索'));
                         },
                       ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Stack(
                         children: [
@@ -592,6 +602,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                               builder: (context, bg, _) => AppIconButton(
                                 icon: AppIcons.send,
                                 extent: control,
+                                opticalShift: AppIcons.sendOpticalShift,
                                 tint: colors.onPrimary,
                                 backgroundColor: bg,
                                 onPressed: _send,
