@@ -8,6 +8,7 @@ import 'package:agent/core/routing/model_router.dart';
 import 'package:agent/data/appearance.dart';
 import 'package:agent/data/chat_service.dart';
 import 'package:agent/data/tool_service.dart';
+import 'package:agent/data/voice_service.dart';
 import 'package:agent/features/lock/app_lock.dart';
 import 'package:agent/l10n/en.dart';
 import 'package:agent/l10n/tr.dart';
@@ -68,6 +69,7 @@ void main() {
       for (final e in ReasoningEffort.values) e.label,
       for (final t in ThemeModeSetting.values) t.label,
       for (final b in BuiltinTool.values) b.label,
+      for (final v in VoiceEngine.values) v.label,
       for (final (_, l) in AppLockSettings.delays) tr(l),
       for (final (_, l) in ConversationOptions.imageRatios) tr(l),
       for (final (n, _) in seedColors) tr(n),

@@ -37,6 +37,7 @@ const credits = <(String, String, String, String)>[
     'BSD-3-Clause',
     'https://pub.dev/packages/speech_to_text',
   ),
+  ('record', '录音（模型转写）', 'BSD-3-Clause', 'https://pub.dev/packages/record'),
   (
     'webview_flutter',
     '代码预览',

@@ -379,7 +379,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           actions: [
             if (messages.isNotEmpty)
               AppIconButton(
-                icon: AppIcons.share,
+                icon: AppIcons.shareBar,
                 onPressed: () => showExportSheet(
                   context,
                   ref,

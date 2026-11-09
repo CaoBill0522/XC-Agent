@@ -5,7 +5,10 @@ import 'package:flutter_miuix/miuix.dart';
 class AppIcons {
   AppIcons._();
 
-  static MiuixVectorIcon _ext(String name) => MiuixIcons.extended.byName(name)!;
+  static MiuixVectorIcon _ext(
+    String name, [
+    MiuixIconWeight weight = MiuixIconWeight.regular,
+  ]) => MiuixIcons.extended.byName(name, weight)!;
 
   static MiuixVectorIcon get add => _ext('add');
   static MiuixVectorIcon get back => _ext('back');
@@ -53,6 +56,10 @@ class AppIcons {
   static MiuixVectorIcon get merge => _ext('merge');
   static MiuixVectorIcon get branch => _ext('mindMap');
   static MiuixVectorIcon get share => _ext('share');
+
+  /// 顶栏的分享：常规字重的线条（15/240）比旁边的调节图标（18/240）细，
+  /// 并排时显得小一号；中等字重的线条正好一样粗。
+  static MiuixVectorIcon get shareBar => _ext('share', MiuixIconWeight.medium);
   static MiuixVectorIcon get file => _ext('file');
   static MiuixVectorIcon get filter => _ext('filter');
   static MiuixVectorIcon get backup => _ext('backup');
@@ -66,7 +73,14 @@ class AppIcons {
   static MiuixVectorIcon get play => _ext('play');
   static MiuixVectorIcon get tools => _ext('gridView');
   static MiuixVectorIcon get translate => _ext('translate');
-  static MiuixVectorIcon get upload => _ext('uploadCloud');
+  /// 上传：云朵又扁又细，和旁边的搜索（线条 19/240）并排显得小；
+  /// 用中等字重（线条 19/240），并配合 [uploadSize] 放大一点。
+  static MiuixVectorIcon get upload =>
+      _ext('uploadCloud', MiuixIconWeight.medium);
+
+  /// 输入栏里上传图标的尺寸（其他按钮是 22）：云朵外框 200×148，按面积和
+  /// 搜索图标（180×180）看起来一样大时约为 23。
+  static const uploadSize = 23.0;
   static MiuixVectorIcon get search => MiuixIcons.basic.search;
   static MiuixVectorIcon get sidebar => MiuixIcons.basic.sidebar;
 }

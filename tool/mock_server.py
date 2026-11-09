@@ -59,8 +59,13 @@ class H(BaseHTTPRequestHandler):
             self.send_json(200, {"object": "list", "data": [{"id": m} for m in MODELS]})
 
     def do_POST(self):
-        body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or b'{}')
+        raw = self.rfile.read(int(self.headers.get('Content-Length', 0)))
         if not self.authed(): return
+        # 语音转写（multipart 上传录音）：固定返回一句中英混说的话，并报告收到的字节数。
+        if self.path == '/v1/audio/transcriptions':
+            print(f"transcription upload: {len(raw)} bytes, wav={b'RIFF' in raw}", flush=True)
+            return self.send_json(200, {"text": "这个style我不喜欢"})
+        body = json.loads(raw or b'{}')
         if FAIL: return self.send_json(500, {"error": {"message": f"mock upstream down on :{PORT}"}})
         model = body.get('model', '')
         reasoning = 'reasoner' in model

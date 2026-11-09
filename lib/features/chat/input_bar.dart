@@ -483,7 +483,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                     AppIconButton(
                       icon: AppIcons.upload,
                       extent: control,
-                      size: 22,
+                      size: AppIcons.uploadSize,
                       tint: colors.onSurfaceVariantActions,
                       backgroundColor: toolBg,
                       onPressed: _pick,
@@ -559,6 +559,9 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                           if (_text.text.isEmpty && !_focus.hasFocus)
                             Positioned.fill(
                               child: HoldToTalk(
+                                transcriber: () => ref
+                                    .read(voiceServiceProvider)
+                                    .transcriber(),
                                 onTap: _focus.requestFocus,
                                 onError: widget.onError,
                                 onEdit: (t) {

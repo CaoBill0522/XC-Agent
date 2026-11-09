@@ -17,6 +17,7 @@ import 'data_page.dart';
 import 'prompts_page.dart';
 import 'tools_page.dart';
 import 'usage_page.dart';
+import 'voice_page.dart';
 import '../../l10n/tr.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -97,6 +98,12 @@ class SettingsPage extends ConsumerWidget {
               summary: tr('深色模式、主题色'),
               startAction: icon(AppIcons.theme),
               onClick: () => push(const AppearancePage()),
+            ),
+            MiuixArrowPreference(
+              title: tr('语音输入'),
+              summary: tr('按住输入框说话；中英混说可以用模型转写'),
+              startAction: icon(AppIcons.mic),
+              onClick: () => push(const VoicePage()),
             ),
             const LanguagePreference(),
             const AppLockPreference(),

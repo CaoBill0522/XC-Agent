@@ -37,6 +37,7 @@ dependencies:
   app_links: ^7.2.2
   package_info_plus: ^10.2.2
   cryptography: ^2.9.0
+  record: ^7.1.2
 
 dev_dependencies:
   flutter_test:

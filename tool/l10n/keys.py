@@ -19,6 +19,7 @@ DYNAMIC_FILES = [
     'lib/data/tool_service.dart',
     'lib/data/chat_service.dart',
     'lib/features/settings/about_page.dart',
+    'lib/data/voice_service.dart',
 ]
 
 

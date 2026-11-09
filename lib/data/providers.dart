@@ -16,6 +16,7 @@ import 'repositories/agent_repository.dart';
 import 'repositories/channel_repository.dart';
 import 'sync/sync_service.dart';
 import 'tool_service.dart';
+import 'voice_service.dart';
 import 'secure/key_store.dart';
 import '../l10n/tr.dart';
 
@@ -73,6 +74,13 @@ final syncServiceProvider = Provider<SyncService>((ref) {
 final toolServiceProvider = Provider<ToolService>(
   (ref) =>
       ToolService(() => ref.read(prefsProvider), ref.watch(keyStoreProvider)),
+);
+
+final voiceServiceProvider = Provider<VoiceService>(
+  (ref) => VoiceService(
+    () => ref.read(prefsProvider),
+    ref.watch(channelRepositoryProvider),
+  ),
 );
 
 final chatServiceProvider = Provider<ChatService>((ref) {

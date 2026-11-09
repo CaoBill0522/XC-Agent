@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:agent/features/lock/app_lock.dart';
 import 'package:agent/features/settings/about_page.dart';
 import 'package:agent/features/settings/tools_page.dart';
+import 'package:agent/features/settings/voice_page.dart';
 import 'package:agent/l10n/en.dart';
 import 'package:agent/features/onboarding/onboarding.dart';
 import 'package:agent/l10n/tr.dart';
@@ -896,6 +897,7 @@ void main() {
       const ToolsPage(),
       const McpServerPage(),
       const AboutPage(),
+      const VoicePage(),
     ]) {
       await _open(tester, page);
       await _open(tester, page, b: Brightness.dark);
@@ -921,6 +923,16 @@ void main() {
     expect(find.text('© 2026 Jiacheng Cao'), findsOneWidget);
     expect(find.text('flutter_miuix'), findsOneWidget);
     expect(find.text('cn.oxoz.agent'), findsNothing);
+    // 语音输入：切到模型转写后，默认选第一个渠道和它的推荐模型。
+    await _open(tester, const VoicePage());
+    expect(find.text('转写渠道'), findsNothing);
+    await prefs.setString('voice_engine', 'model');
+    await _open(tester, const VoicePage());
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('转写渠道'), findsOneWidget);
+    expect(prefs.getString('voice_channel'), isNotNull);
+    expect(prefs.getString('voice_model'), isNotEmpty);
+    await prefs.remove('voice_engine');
     // 设置：应用锁开关。
     await _open(tester, const SettingsPage());
     expect(find.text('应用锁'), findsOneWidget);
@@ -1003,6 +1015,12 @@ void main() {
       await _open(tester, page);
       collect();
     }
+    final prefs = (await tester.runAsync(SharedPreferences.getInstance))!;
+    await prefs.setString('voice_engine', 'model');
+    await _open(tester, const VoicePage());
+    await tester.pump(const Duration(milliseconds: 100));
+    collect();
+    await prefs.remove('voice_engine');
     final id = (await tester.runAsync(_newEmpty))!;
     await _open(tester, ChatPage(conversationId: id));
     collect();
