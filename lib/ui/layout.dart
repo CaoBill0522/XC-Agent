@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -9,6 +11,16 @@ const double kSidebarWidth = 300;
 
 bool isWideLayout(BuildContext context) =>
     MediaQuery.sizeOf(context).width >= kWideBreakpoint;
+
+/// 底部被占用的高度：键盘高度和底部安全区取较大值。
+///
+/// 不能写成「有键盘用键盘高度，否则用安全区」：键盘收起动画中键盘高度会先降到
+/// 安全区以下（输入栏跟着沉到最底），归零那一刻再跳回安全区高度，看起来一跳。
+/// 也不能用 MediaQuery.padding：键盘弹出时它会被扣成 0，要用 viewPadding。
+double bottomInsetOf(BuildContext context) => math.max(
+  MediaQuery.viewInsetsOf(context).bottom,
+  MediaQuery.viewPaddingOf(context).bottom,
+);
 
 /// 是否桌面平台（决定 Enter 发送、拖拽、粘贴图片等交互）。
 bool get isDesktopPlatform =>

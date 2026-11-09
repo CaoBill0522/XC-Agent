@@ -1,5 +1,10 @@
 import 'dart:convert';
 import 'dart:io' show gzip;
+import 'dart:isolate';
+import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:cryptography/cryptography.dart';
 
 import 'db/app_database.dart';
 import 'secure/key_store.dart';
@@ -15,12 +20,23 @@ class ConfigTransfer {
   static const format = 'cn.oxoz.agent/config';
   static const version = 1;
 
-  /// 导出文本的前缀：后面是 gzip 压缩后的 JSON 再做 base64url 编码。
-  /// 这只是编码（防止一眼看到 Key、也更短），不是加密，任何人都能解开。
+  /// 旧版导出（只做了 gzip + base64url 编码，没有加密）。仍可导入。
   static const prefix = 'XCAGENT1:';
 
-  /// 导出全部配置（含 API Key），编码成一串文本。
-  Future<String> export() async {
+  /// 加密导出：`XCAGENT2:` + base64url(盐 16 字节 ‖ 随机数 12 字节 ‖ 密文 ‖ 校验 16 字节)。
+  /// 明文是 gzip 压缩后的 JSON；密钥由密码经 PBKDF2-HMAC-SHA256 派生，
+  /// 用 AES-256-GCM 加密（自带完整性校验，密码错误或内容被改动都会解不开）。
+  static const encryptedPrefix = 'XCAGENT2:';
+  static const pbkdf2Iterations = 120000;
+
+  /// 导出全部配置（含 API Key），用 [password] 加密成一串文本。
+  Future<String> export(String password) async {
+    final plain = await exportJson();
+    return Isolate.run(() => encrypt(plain, password));
+  }
+
+  /// 导出内容加密前的 JSON。
+  Future<String> exportJson() async {
     final channels = await _db.select(_db.channels).get();
     final keys = <String, String>{};
     for (final c in channels) {
@@ -43,10 +59,87 @@ class ConfigTransfer {
         for (final a in await _db.select(_db.agents).get()) a.toJson(),
       ],
     });
-    return prefix + base64Url.encode(gzip.encode(utf8.encode(json)));
+    return json;
   }
 
-  /// 解码导出文本；也接受旧版直接导出的 JSON。
+  static Future<SecretKey> _deriveKey(String password, List<int> salt) =>
+      Pbkdf2(
+        macAlgorithm: Hmac.sha256(),
+        iterations: pbkdf2Iterations,
+        bits: 256,
+      ).deriveKeyFromPassword(password: password, nonce: salt);
+
+  static Future<String> encrypt(String json, String password) async {
+    final rnd = Random.secure();
+    final salt = List<int>.generate(16, (_) => rnd.nextInt(256));
+    final key = await _deriveKey(password, salt);
+    final aes = AesGcm.with256bits();
+    final box = await aes.encrypt(
+      gzip.encode(utf8.encode(json)),
+      secretKey: key,
+      nonce: aes.newNonce(),
+    );
+    final bytes = BytesBuilder()
+      ..add(salt)
+      ..add(box.nonce)
+      ..add(box.cipherText)
+      ..add(box.mac.bytes);
+    return encryptedPrefix + base64Url.encode(bytes.takeBytes());
+  }
+
+  static String _clean(String t) => t.replaceAll(RegExp(r'\s'), '');
+
+  /// 是否加密格式（导入前需要先问密码）。
+  static bool isEncrypted(String text) =>
+      text.trim().startsWith(encryptedPrefix);
+
+  /// 解开加密导出的文本。格式不对或密码错误时抛 [FormatException]。
+  static Future<Map<String, dynamic>> decrypt(
+    String text,
+    String password,
+  ) async {
+    // 在后台 isolate 里跑（PBKDF2 计算量大）；那边没有界面语言设置，
+    // 只回传错误代码，提示文字在这里翻译。
+    final r = await Isolate.run(() => _decrypt(text, password));
+    return switch (r) {
+      final Map<String, dynamic> json => json,
+      'password' => throw FormatException(tr('密码不对，或者内容不完整')),
+      _ => throw FormatException(tr('剪贴板内容不是有效的配置')),
+    };
+  }
+
+  static Future<Object> _decrypt(String text, String password) async {
+    final List<int> bytes;
+    try {
+      bytes = base64Url.decode(
+        base64Url.normalize(
+          _clean(text.trim().substring(encryptedPrefix.length)),
+        ),
+      );
+    } catch (_) {
+      return 'format';
+    }
+    if (bytes.length < 16 + 12 + 16) return 'format';
+    final box = SecretBox(
+      bytes.sublist(28, bytes.length - 16),
+      nonce: bytes.sublist(16, 28),
+      mac: Mac(bytes.sublist(bytes.length - 16)),
+    );
+    try {
+      final plain = await AesGcm.with256bits().decrypt(
+        box,
+        secretKey: await _deriveKey(password, bytes.sublist(0, 16)),
+      );
+      return jsonDecode(utf8.decode(gzip.decode(plain)))
+          as Map<String, dynamic>;
+    } on SecretBoxAuthenticationError {
+      return 'password';
+    } catch (_) {
+      return 'format';
+    }
+  }
+
+  /// 解码未加密的导出文本（旧版编码格式或明文 JSON）。
   static Map<String, dynamic> decode(String text) {
     final t = text.trim();
     try {
@@ -67,9 +160,11 @@ class ConfigTransfer {
     }
   }
 
-  /// 导入（按 ID 覆盖同名记录）。返回导入的条目数说明。
-  Future<String> import(String text) async {
-    final json = decode(text);
+  /// 导入（按 ID 覆盖同名记录）。加密格式需要 [password]。返回导入的条目数说明。
+  Future<String> import(String text, {String? password}) async {
+    final json = isEncrypted(text)
+        ? await decrypt(text, password ?? '')
+        : decode(text);
     if (json['format'] != format) throw FormatException(tr('不是本应用导出的配置'));
 
     List<Map<String, dynamic>> list(String k) => [

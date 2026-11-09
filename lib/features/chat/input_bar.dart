@@ -351,10 +351,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
-    final media = MediaQuery.of(context);
-    final bottom = media.viewInsets.bottom > 0
-        ? media.viewInsets.bottom
-        : media.padding.bottom;
+    final bottom = bottomInsetOf(context);
     final conv = ref.watch(conversationProvider(widget.conversationId));
     final webOn = conv?.webSearch ?? false;
     final options = ConversationOptions.decode(conv?.optionsJson);
@@ -485,7 +482,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     AppIconButton(
-                      icon: AppIcons.image,
+                      icon: AppIcons.upload,
                       extent: control,
                       tint: colors.onSurfaceVariantActions,
                       onPressed: _pick,

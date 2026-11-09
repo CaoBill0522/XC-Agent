@@ -4,6 +4,7 @@ import 'package:flutter_miuix/miuix.dart';
 import '../core/models/capabilities.dart';
 import 'vendor/app_text_field.dart';
 import 'app_icons.dart';
+import 'layout.dart';
 import 'measure_size.dart';
 import 'motion.dart';
 import 'top_bar_text.dart';
@@ -101,10 +102,7 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                             16,
                             8,
                             16,
-                            12 +
-                                (media.viewInsets.bottom > 0
-                                    ? media.viewInsets.bottom
-                                    : media.padding.bottom),
+                            12 + bottomInsetOf(context),
                           ),
                           child: widget.bottomBar,
                         )

@@ -32,6 +32,37 @@ class VoiceRecognizer extends ChangeNotifier {
   Completer<void>? _final;
   String? error;
 
+  /// 识别语言跟界面语言走（中文界面 → 普通话）。不传的话 iOS 用 App 的
+  /// Locale.current，很可能是英文，中文就识别不出来。
+  String? _localeId;
+  bool? _localeForEn;
+
+  Future<String?> _pickLocale() async {
+    final en = L10n.isEn;
+    if (_localeForEn == en) return _localeId;
+    _localeForEn = en;
+    List<LocaleName> all;
+    try {
+      all = await _stt.locales();
+    } catch (_) {
+      all = const [];
+    }
+    String norm(String id) => id.replaceAll('-', '_').toLowerCase();
+    final wanted = en
+        ? ['en_us', 'en_gb', 'en']
+        : ['zh_cn', 'zh_hans_cn', 'cmn_hans_cn', 'zh_hans', 'zh'];
+    for (final w in wanted) {
+      for (final l in all) {
+        final id = norm(l.localeId);
+        if (id == w || (w.length <= 3 && id.startsWith('${w}_'))) {
+          return _localeId = l.localeId;
+        }
+      }
+    }
+    // 列表拿不到时直接指定。
+    return _localeId = en ? 'en_US' : 'zh_CN';
+  }
+
   Future<bool> _init() async {
     if (_ready) return true;
     try {
@@ -75,6 +106,7 @@ class VoiceRecognizer extends ChangeNotifier {
         },
         onSoundLevelChange: _onLevel,
         listenOptions: SpeechListenOptions(
+          localeId: await _pickLocale(),
           partialResults: true,
           listenMode: ListenMode.dictation,
           autoPunctuation: true,

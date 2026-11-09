@@ -202,6 +202,92 @@ Future<String?> showTextInput(
   );
 }
 
+/// 输入密码。[confirm] 为 true 时要求输入两次（设置新密码），两次不一致或
+/// 少于 [minLength] 位时在对话框里提示，不关闭。
+Future<String?> showPasswordInput(
+  BuildContext context, {
+  required String title,
+  String? message,
+  bool confirm = false,
+  int minLength = 6,
+}) {
+  final first = TextEditingController();
+  final second = TextEditingController();
+  final error = ValueNotifier<String?>(null);
+  return showAppDialog<String>(
+    context,
+    title: title,
+    summary: message,
+    content: (ctx, close) {
+      void submit() {
+        final p = first.text;
+        if (p.length < minLength) {
+          error.value = trArgs('密码至少 {0} 位', [minLength]);
+        } else if (confirm && p != second.text) {
+          error.value = tr('两次输入的密码不一致');
+        } else {
+          close(p);
+        }
+      }
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          AppTextField(
+            controller: first,
+            label: tr('密码'),
+            useLabelAsPlaceholder: true,
+            autofocus: true,
+            obscureText: true,
+            autocorrect: false,
+            enableSuggestions: false,
+            singleLine: true,
+            onSubmitted: confirm ? null : (_) => submit(),
+          ),
+          if (confirm) ...[
+            const SizedBox(height: 10),
+            AppTextField(
+              controller: second,
+              label: tr('再输入一次'),
+              useLabelAsPlaceholder: true,
+              obscureText: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              singleLine: true,
+              onSubmitted: (_) => submit(),
+            ),
+          ],
+          ValueListenableBuilder(
+            valueListenable: error,
+            builder: (ctx, e, _) => e == null
+                ? const SizedBox(height: 4)
+                : Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: MiuixText(
+                      e,
+                      fontSize: 13,
+                      color: MiuixTheme.of(ctx).colors.error,
+                    ),
+                  ),
+          ),
+          DialogButtons(
+            confirmText: tr('确定'),
+            onConfirm: submit,
+            onCancel: close,
+          ),
+        ],
+      );
+    },
+  ).whenComplete(
+    () => WidgetsBinding.instance.addPostFrameCallback((_) {
+      first.dispose();
+      second.dispose();
+      error.dispose();
+    }),
+  );
+}
+
 /// 通用底部面板：[builder] 里调用 close(result) 关闭并返回结果。
 /// 内容过高时可滚动。
 Future<T?> showAppSheet<T>(

@@ -32,17 +32,27 @@ class _DataPageState extends ConsumerState<DataPage> {
     super.dispose();
   }
 
+  bool _busy = false;
+
   Future<void> _export() async {
-    if (!await showConfirm(
+    final password = await showPasswordInput(
       context,
-      title: tr('导出配置'),
-      message: tr('导出内容包含 API Key，只是做了编码、没有加密，任何人拿到都能解开。请只粘贴到你信任的地方，用完及时清除。'),
-      confirmText: tr('继续'),
-    )) {
-      return;
+      title: tr('设置导出密码'),
+      message: tr(
+        '导出内容包含 API Key，会用这个密码加密（AES-256）。在另一台设备导入时需要输入同一个密码，忘记了就无法导入。',
+      ),
+      confirm: true,
+    );
+    if (password == null || !mounted) return;
+    setState(() => _busy = true);
+    _snackbar.showSnackbar(tr('正在加密…'));
+    try {
+      final text = await _transfer.export(password);
+      await Clipboard.setData(ClipboardData(text: text));
+      _snackbar.showSnackbar(tr('已加密并复制到剪贴板'));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
-    await Clipboard.setData(ClipboardData(text: await _transfer.export()));
-    _snackbar.showSnackbar(tr('配置已复制到剪贴板'));
   }
 
   Future<void> _import() async {
@@ -51,10 +61,24 @@ class _DataPageState extends ConsumerState<DataPage> {
       _snackbar.showSnackbar(tr('剪贴板是空的'));
       return;
     }
+    String? password;
+    if (ConfigTransfer.isEncrypted(text)) {
+      if (!mounted) return;
+      password = await showPasswordInput(
+        context,
+        title: tr('输入导出密码'),
+        message: tr('这份配置是加密的，请输入导出时设置的密码。'),
+        minLength: 1,
+      );
+      if (password == null) return;
+    }
+    setState(() => _busy = true);
     try {
-      _snackbar.showSnackbar(await _transfer.import(text));
+      _snackbar.showSnackbar(await _transfer.import(text, password: password));
     } on FormatException catch (e) {
       _snackbar.showSnackbar(e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -87,12 +111,14 @@ class _DataPageState extends ConsumerState<DataPage> {
           children: [
             MiuixArrowPreference(
               title: tr('导出到剪贴板'),
-              summary: tr('含 API Key，用于迁移到另一台设备'),
+              summary: tr('含 API Key，用密码加密后复制，用于迁移到另一台设备'),
+              enabled: !_busy,
               onClick: _export,
             ),
             MiuixArrowPreference(
               title: tr('从剪贴板导入'),
               summary: tr('同 ID 的配置会被覆盖'),
+              enabled: !_busy,
               onClick: _import,
             ),
           ],

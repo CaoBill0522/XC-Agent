@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:agent/core/api/protocol.dart';
 import 'package:agent/core/chat/chat_types.dart';
@@ -31,19 +32,38 @@ void main() {
       params: const GenParams(reasoning: ReasoningEffort.high),
     );
 
-    final withKey = await ConfigTransfer(srcDb, srcKeys).export();
-    // 编码后的一串文本：看不到明文 Key，解码后带 Key。
-    expect(withKey, startsWith(ConfigTransfer.prefix));
+    final withKey = await ConfigTransfer(srcDb, srcKeys).export('pass1234');
+    // 加密后的一串文本：看不到明文，每次导出（盐和随机数不同）结果都不一样。
+    expect(withKey, startsWith(ConfigTransfer.encryptedPrefix));
     expect(withKey, isNot(contains('sk-secret')));
     expect(withKey, isNot(contains('\n')));
+    expect(ConfigTransfer.isEncrypted(withKey), isTrue);
     expect(
-      ConfigTransfer.decode(withKey)['channels'][0]['apiKey'],
+      await ConfigTransfer(srcDb, srcKeys).export('pass1234'),
+      isNot(withKey),
+    );
+    expect(
+      (await ConfigTransfer.decrypt(
+        withKey,
+        'pass1234',
+      ))['channels'][0]['apiKey'],
       'sk-secret',
     );
 
     final dstDb = AppDatabase(NativeDatabase.memory());
     final dstKeys = MemoryKeyStore();
-    final msg = await ConfigTransfer(dstDb, dstKeys).import(withKey);
+    // 密码不对：解不开，什么也不写入。
+    await expectLater(
+      ConfigTransfer(dstDb, dstKeys).import(withKey, password: 'wrong'),
+      throwsA(
+        isA<FormatException>().having((e) => e.message, 'm', contains('密码不对')),
+      ),
+    );
+    expect(dstKeys.values, isEmpty);
+    final msg = await ConfigTransfer(
+      dstDb,
+      dstKeys,
+    ).import(withKey, password: 'pass1234');
     expect(msg, contains('1 个渠道（含 1 个 Key）'));
 
     final dst = ChannelRepository(dstDb, dstKeys);
@@ -66,15 +86,19 @@ void main() {
       RegExp(r'.{40}'),
       (m) => '${m[0]}\n',
     );
-    await ConfigTransfer(dstDb, dstKeys).import(wrapped);
+    await ConfigTransfer(dstDb, dstKeys).import(wrapped, password: 'pass1234');
     expect(await dst.watchModels().first, hasLength(2));
 
-    // 旧版导出的明文 JSON 仍然可以导入。
-    final legacy = jsonEncode(ConfigTransfer.decode(withKey));
+    // 旧版导出：明文 JSON 和只做了 base64 编码的格式仍然可以导入。
+    final json = await ConfigTransfer(srcDb, srcKeys).exportJson();
     expect(
-      await ConfigTransfer(dstDb, dstKeys).import(legacy),
+      await ConfigTransfer(dstDb, dstKeys).import(json),
       contains('1 个渠道'),
     );
+    final v1 =
+        ConfigTransfer.prefix +
+        base64Url.encode(gzip.encode(utf8.encode(json)));
+    expect(await ConfigTransfer(dstDb, dstKeys).import(v1), contains('1 个渠道'));
 
     expect(
       () => ConfigTransfer(dstDb, dstKeys).import('{"x":1}'),

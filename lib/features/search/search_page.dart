@@ -140,7 +140,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                 gutter - 12,
                                 0,
                                 gutter - 12,
-                                padding.bottom + 16,
+                                // 键盘弹出时最后几条结果不被挡住。
+                                bottomInsetOf(context) + 16,
                               ),
                               keyboardDismissBehavior:
                                   ScrollViewKeyboardDismissBehavior.onDrag,
