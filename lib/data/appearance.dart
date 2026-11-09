@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:ui';
 
 import 'package:flutter_miuix/miuix.dart';
@@ -39,7 +40,11 @@ class Appearance {
   };
 }
 
-/// 可选的主题种子色。null 表示「壁纸取色」（仅 Android 有效，其他平台回退默认色）。
+/// 只有 Android 能读系统壁纸取色；iOS / 桌面端 miuix 会回退到固定配色，
+/// 看起来像没生效，所以这些平台不提供「动态取色」开关和「壁纸取色」，只能选主题色。
+bool get wallpaperColorSupported => Platform.isAndroid;
+
+/// 可选的主题种子色。null 表示「壁纸取色」（仅 Android）。
 const seedColors = <(String, Color?)>[
   ('壁纸取色', null),
   ('蓝', Color(0xFF3482FF)),
@@ -59,11 +64,13 @@ class AppearanceNotifier extends Notifier<Appearance> {
   Appearance build() {
     final p = ref.watch(prefsProvider);
     final seed = p.getInt(_kSeed);
+    final monet = p.getBool(_kMonet) ?? false;
     return Appearance(
       mode:
           ThemeModeSetting.values.elementAtOrNull(p.getInt(_kMode) ?? 0) ??
           ThemeModeSetting.system,
-      monet: p.getBool(_kMonet) ?? false,
+      // 不支持壁纸取色的平台上，「动态取色 + 壁纸」等同于默认配色。
+      monet: monet && (seed != null || wallpaperColorSupported),
       seed: seed == null ? null : Color(seed),
     );
   }
@@ -76,6 +83,12 @@ class AppearanceNotifier extends Notifier<Appearance> {
   void setMonet(bool on) {
     ref.read(prefsProvider).setBool(_kMonet, on);
     state = Appearance(mode: state.mode, monet: on, seed: state.seed);
+  }
+
+  /// 只选主题色的平台用：null = 默认配色，否则按这个颜色生成整套配色。
+  void setThemeColor(Color? c) {
+    setSeed(c);
+    setMonet(c != null);
   }
 
   void setSeed(Color? c) {

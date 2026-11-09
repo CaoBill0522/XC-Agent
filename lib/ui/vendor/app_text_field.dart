@@ -175,7 +175,15 @@ class _AppTextFieldState extends State<AppTextField>
       _labelState == _LabelAnimState.normal ||
       _labelState == _LabelAnimState.floating;
 
+  /// 上一次构建时是否显示标签 / 占位文字。
+  bool _labelShown = false;
+
   void _onTextChanged() {
+    // 占位模式下标签不做浮动动画，AnimatedBuilder 不会因输入而重建：
+    // 出现 / 消失要自己触发，否则打字后占位文字仍压在内容上。
+    if (_showLabel != _labelShown && mounted) {
+      setState(() {});
+    }
     final shouldFloat = _isFloating;
     if (shouldFloat && _labelController.value != 1.0) {
       _labelController.forward();
@@ -194,6 +202,7 @@ class _AppTextFieldState extends State<AppTextField>
 
   @override
   Widget build(BuildContext context) {
+    _labelShown = _showLabel;
     final colors =
         widget.colors ?? MiuixTextFieldDefaults.textFieldColors(context);
     final theme = MiuixTheme.of(context);

@@ -356,9 +356,9 @@ class GenParams {
   factory GenParams.fromJson(String json) {
     try {
       final j = jsonDecode(json) as Map<String, dynamic>;
+      // 助手只设置推理强度；旧版存下的温度 / 最大输出不再读取（界面已去掉，
+      // 继续生效的话用户看不到也改不了）。
       return GenParams(
-        temperature: (j['temperature'] as num?)?.toDouble(),
-        maxTokens: (j['max_tokens'] as num?)?.toInt(),
         reasoning: ReasoningEffort.fromId(j['reasoning'] as String?),
       );
     } catch (_) {

@@ -76,7 +76,7 @@ class SettingsPage extends ConsumerWidget {
             MiuixArrowPreference(
               title: tr('助手'),
               summary: agents.isEmpty
-                  ? tr('系统提示词与参数预设')
+                  ? tr('模型 + 系统提示词，聊天时直接选用')
                   : trArgs('{0} 个助手', [agents.length]),
               startAction: icon(AppIcons.edit),
               onClick: () => push(const AgentsPage()),

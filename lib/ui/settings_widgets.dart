@@ -139,11 +139,20 @@ class SettingsGroup extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: MiuixCard(
-            child: AnimatedSize(
-              duration: Motion.medium,
-              curve: Motion.curve,
-              alignment: Alignment.topCenter,
-              child: Column(children: children),
+            // 卡片本身不裁剪内容：按下 / 下拉展开时整行的高亮是直角矩形，
+            // 卡片只有一行时会盖住圆角。按卡片形状裁剪。
+            child: ClipPath(
+              clipper: const ShapeBorderClipper(
+                shape: MiuixSquircleBorder(
+                  cornerRadius: MiuixCardDefaults.cornerRadius,
+                ),
+              ),
+              child: AnimatedSize(
+                duration: Motion.medium,
+                curve: Motion.curve,
+                alignment: Alignment.topCenter,
+                child: Column(children: children),
+              ),
             ),
           ),
         ),

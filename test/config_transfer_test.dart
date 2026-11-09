@@ -28,7 +28,7 @@ void main() {
       name: '翻译官',
       modelId: modelId,
       systemPrompt: '翻译',
-      params: const GenParams(temperature: 0.3),
+      params: const GenParams(reasoning: ReasoningEffort.high),
     );
 
     final noKey = await ConfigTransfer(
@@ -57,7 +57,10 @@ void main() {
     expect(dstKeys.values[ch], 'sk-secret');
     final agents = await AgentRepository(dstDb).watchAll().first;
     expect(agents.single.name, '翻译官');
-    expect(GenParams.fromJson(agents.single.paramsJson).temperature, 0.3);
+    expect(
+      GenParams.fromJson(agents.single.paramsJson).reasoning,
+      ReasoningEffort.high,
+    );
 
     // 重复导入不会重复插入。
     await ConfigTransfer(dstDb, dstKeys).import(withKey);

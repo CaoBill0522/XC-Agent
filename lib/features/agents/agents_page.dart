@@ -10,7 +10,7 @@ import '../../ui/settings_widgets.dart';
 import '../../ui/vendor/app_text_field.dart';
 import '../../l10n/tr.dart';
 
-/// 助手列表：每个助手 = 模型 + 系统提示词 + 参数。
+/// 助手列表：每个助手 = 模型 + 系统提示词（+ 推理强度）。
 class AgentsPage extends ConsumerWidget {
   const AgentsPage({super.key});
 
@@ -35,7 +35,7 @@ class AgentsPage extends ConsumerWidget {
             child: Column(
               children: [
                 MiuixText(
-                  tr('助手 = 模型 + 系统提示词 + 参数\n例如「翻译官」「代码审查」，聊天时直接选用'),
+                  tr('助手 = 模型 + 系统提示词\n例如「翻译官」「代码审查」，聊天时直接选用'),
                   textAlign: TextAlign.center,
                   color: colors.onSurfaceVariantSummary,
                 ),
@@ -89,8 +89,6 @@ class AgentEditPage extends ConsumerStatefulWidget {
 class _AgentEditPageState extends ConsumerState<AgentEditPage> {
   final _name = TextEditingController();
   final _prompt = TextEditingController();
-  final _temperature = TextEditingController();
-  final _maxTokens = TextEditingController();
   final _snackbar = MiuixSnackbarHostState();
   String? _modelId;
   ReasoningEffort _reasoning = ReasoningEffort.auto;
@@ -115,8 +113,6 @@ class _AgentEditPageState extends ConsumerState<AgentEditPage> {
       _name.text = a.name;
       _prompt.text = a.systemPrompt;
       _modelId = a.modelId;
-      _temperature.text = p.temperature?.toString() ?? '';
-      _maxTokens.text = p.maxTokens?.toString() ?? '';
       _reasoning = p.reasoning;
       _loaded = true;
     });
@@ -124,7 +120,7 @@ class _AgentEditPageState extends ConsumerState<AgentEditPage> {
 
   @override
   void dispose() {
-    for (final c in [_name, _prompt, _temperature, _maxTokens]) {
+    for (final c in [_name, _prompt]) {
       c.dispose();
     }
     _snackbar.dispose();
@@ -132,21 +128,6 @@ class _AgentEditPageState extends ConsumerState<AgentEditPage> {
   }
 
   Future<void> _save() async {
-    final temp = _temperature.text.trim().isEmpty
-        ? null
-        : double.tryParse(_temperature.text.trim());
-    final max = _maxTokens.text.trim().isEmpty
-        ? null
-        : int.tryParse(_maxTokens.text.trim());
-    if (_temperature.text.trim().isNotEmpty &&
-        (temp == null || temp < 0 || temp > 2)) {
-      _snackbar.showSnackbar(tr('温度应为 0~2 之间的数字'));
-      return;
-    }
-    if (_maxTokens.text.trim().isNotEmpty && (max == null || max <= 0)) {
-      _snackbar.showSnackbar(tr('最大输出应为正整数'));
-      return;
-    }
     await ref
         .read(agentRepositoryProvider)
         .save(
@@ -154,11 +135,7 @@ class _AgentEditPageState extends ConsumerState<AgentEditPage> {
           name: _name.text,
           modelId: _modelId,
           systemPrompt: _prompt.text,
-          params: GenParams(
-            temperature: temp,
-            maxTokens: max,
-            reasoning: _reasoning,
-          ),
+          params: GenParams(reasoning: _reasoning),
         );
     if (mounted) Navigator.of(context).maybePop();
   }
@@ -233,20 +210,8 @@ class _AgentEditPageState extends ConsumerState<AgentEditPage> {
           ],
         ),
         SettingsGroup(
-          title: tr('参数（留空使用模型默认值）'),
+          title: tr('参数'),
           children: [
-            SettingsField(
-              controller: _temperature,
-              label: tr('温度 (0~2)'),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-            ),
-            SettingsField(
-              controller: _maxTokens,
-              label: tr('最大输出 tokens'),
-              keyboardType: TextInputType.number,
-            ),
             MiuixOverlayDropdownPreference(
               title: tr('推理强度'),
               summary: tr('仅对带「推理」标签的模型生效'),

@@ -283,7 +283,6 @@ class ChannelRepository {
     );
   }
 
-
   Future<void> setRouteStrategy(String modelId, String strategy) =>
       (_db.update(_db.models)..where((m) => m.id.equals(modelId))).write(
         ModelsCompanion(routeStrategy: Value(strategy)),

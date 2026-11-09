@@ -883,11 +883,17 @@ void main() {
       await _open(tester, page);
       await _open(tester, page, b: Brightness.dark);
     }
-    // 外观：打开动态取色，主题色区域展开。
+    // 外观：测试主机不是 Android，没有「动态取色」开关和「壁纸取色」，
+    // 直接列出主题色（默认 + 各颜色），选一个即生效。
     await _open(tester, const AppearancePage());
-    await tester.tap(find.byType(MiuixSwitch).first);
-    await _settle(tester);
+    expect(find.text('动态取色 (Monet)'), findsNothing);
+    expect(find.text('壁纸取色'), findsNothing);
     expect(find.text('主题色'), findsOneWidget);
+    await _tapText(tester, '绿');
+    final prefs = (await tester.runAsync(SharedPreferences.getInstance))!;
+    expect(prefs.getBool('appearance_monet'), isTrue);
+    await _tapText(tester, '默认');
+    expect(prefs.getBool('appearance_monet'), isFalse);
     // 数据：iCloud 同步分组（测试主机是 macOS）。
     await _open(tester, const DataPage());
     expect(find.text('通过 iCloud 同步'), findsOneWidget);
