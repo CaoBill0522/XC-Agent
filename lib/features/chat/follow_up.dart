@@ -91,8 +91,16 @@ class ChatActions extends InheritedWidget {
     required this.quoteHere,
     required this.askInNew,
     required this.clearSelections,
+    required this.branchFrom,
+    required this.shareMessage,
     required super.child,
   });
+
+  /// 从这条消息分出一个新对话。
+  final void Function(String msgId) branchFrom;
+
+  /// 导出 / 分享单条回答。
+  final void Function(String msgId) shareMessage;
 
   /// 每次 +1，页面上所有回答清除文字选择（双击采纳时，iOS 的双击选词会顺带
   /// 选中一个词并弹出菜单，需要撤销）。

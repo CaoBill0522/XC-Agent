@@ -41,6 +41,10 @@ class Models extends Table {
   BoolColumn get enabled => boolean().withDefault(const Constant(true))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
+  /// 单价：每百万 token 的输入 / 输出价格（货币见设置），用于用量统计。（v5）
+  RealColumn get inputPrice => real().nullable()();
+  RealColumn get outputPrice => real().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -94,6 +98,10 @@ class Conversations extends Table {
 
   /// 本会话是否开启联网搜索。（v3）
   BoolColumn get webSearch => boolean().withDefault(const Constant(false))();
+
+  /// 会话选项 JSON（v5）：裁判 / 总结者、辩论轮数、上下文条数、自动压缩、
+  /// 压缩后的早期对话摘要等，见 ConversationOptions。
+  TextColumn get optionsJson => text().withDefault(const Constant('{}'))();
   BoolColumn get pinned => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
@@ -122,6 +130,9 @@ class Messages extends Table {
   /// 接力分析模式下的步骤序号（0 起）；其他模式为 null。（schema v4）
   IntColumn get stepIndex => integer().nullable()();
 
+  /// 特殊消息类型（v5）：judge = 裁判点评；debate = 辩论发言；summary = 辩论总结。
+  TextColumn get kind => text().nullable()();
+
   /// 多 Agent 模式下是否为被采纳的回答（进入共同上下文）。
   BoolColumn get adopted => boolean().withDefault(const Constant(true))();
   TextColumn get agentId => text().nullable()();
@@ -138,6 +149,17 @@ class Messages extends Table {
   /// token 用量，JSON 对象。
   TextColumn get usageJson => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 提示词库：输入框里打 / 调出。（v5）
+class Prompts extends Table {
+  TextColumn get id => text()();
+  TextColumn get title => text()();
+  TextColumn get content => text()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {id};

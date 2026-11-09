@@ -32,6 +32,16 @@ class AnthropicAdapter extends ProtocolAdapter {
               'data': img.base64,
             },
           },
+        for (final f in t.files)
+          {
+            'type': 'document',
+            'source': {
+              'type': 'base64',
+              'media_type': f.mime,
+              'data': f.base64,
+            },
+            'title': f.name,
+          },
         if (t.text.isNotEmpty) {'type': 'text', 'text': t.text},
       ];
       if (blocks.isEmpty) continue;

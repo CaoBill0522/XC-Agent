@@ -20,6 +20,7 @@ import 'markdown_view.dart';
 import '../../ui/links.dart';
 import '../../ui/scroll_anchor.dart';
 import 'follow_up.dart';
+import 'input_bar.dart';
 
 /// 消息列表里的一项：单条消息，或多 Agent 同组回答。
 sealed class ChatItem {
@@ -97,6 +98,12 @@ class UserBubble extends ConsumerWidget {
             await ref.read(chatServiceProvider).editAndResend(message.id, text);
           }
         }, icon: AppIcons.edit),
+        if (ChatActions.maybeOf(context) case final a?)
+          SheetAction(
+            '从这里分支',
+            () => a.branchFrom(message.id),
+            icon: AppIcons.branch,
+          ),
         SheetAction(
           '删除',
           () => ref.read(chatServiceProvider).deleteMessage(message.id),
@@ -125,6 +132,19 @@ class UserBubble extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: QuoteCard(text: q, maxLines: 4),
+                ),
+              if (parts.files.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      for (final f in parts.files)
+                        FileChip(name: f.name, size: f.size),
+                    ],
+                  ),
                 ),
               if (parts.images.isNotEmpty)
                 Padding(
@@ -229,10 +249,14 @@ class AssistantMessage extends ConsumerWidget {
     super.key,
     required this.message,
     this.showHeader = true,
+    this.showActions = true,
   });
 
   final Message message;
   final bool showHeader;
+
+  /// 导出图片时不显示复制 / 重新生成等操作，文字也不可选。
+  final bool showActions;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -322,13 +346,15 @@ class AssistantMessage extends ConsumerWidget {
               ),
             ),
           if (parts.text.isNotEmpty)
-            SelectableAnswer(
-              messageId: message.id,
-              enabled:
-                  message.status == MsgStatus.done ||
-                  message.status == MsgStatus.stopped,
-              child: MarkdownView(parts.text),
-            ),
+            showActions
+                ? SelectableAnswer(
+                    messageId: message.id,
+                    enabled:
+                        message.status == MsgStatus.done ||
+                        message.status == MsgStatus.stopped,
+                    child: MarkdownView(parts.text),
+                  )
+                : MarkdownView(parts.text),
           if (active && parts.text.isEmpty && parts.thinking.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -360,43 +386,54 @@ class AssistantMessage extends ConsumerWidget {
                 color: colors.onSurfaceVariantSummary,
               ),
             ),
-          PopSwitch(
-            switchKey: active,
-            child: Transform.translate(
-              // _SmallAction 有 6 的内边距，左移让图标与正文左边缘对齐。
-              offset: const Offset(-6, 0),
-              child: !active
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        children: [
-                          _SmallAction(
-                            icon: AppIcons.copy,
-                            onTap: () => Clipboard.setData(
-                              ClipboardData(text: parts.text),
+          if (showActions)
+            PopSwitch(
+              switchKey: active,
+              child: Transform.translate(
+                // _SmallAction 有 6 的内边距，左移让图标与正文左边缘对齐。
+                offset: const Offset(-6, 0),
+                child: !active
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Row(
+                          children: [
+                            _SmallAction(
+                              icon: AppIcons.copy,
+                              onTap: () => Clipboard.setData(
+                                ClipboardData(text: parts.text),
+                              ),
                             ),
-                          ),
-                          _SmallAction(
-                            icon: AppIcons.regenerate,
-                            onTap: () => service.regenerate(message.id),
-                          ),
-                          _SmallAction(
-                            icon: AppIcons.delete,
-                            onTap: () => service.deleteMessage(message.id),
-                          ),
-                          if (message.usageJson case final u?) _UsageText(u),
-                        ],
+                            _SmallAction(
+                              icon: AppIcons.regenerate,
+                              onTap: () => service.regenerate(message.id),
+                            ),
+                            if (ChatActions.maybeOf(context) case final a?) ...[
+                              _SmallAction(
+                                icon: AppIcons.share,
+                                onTap: () => a.shareMessage(message.id),
+                              ),
+                              _SmallAction(
+                                icon: AppIcons.branch,
+                                onTap: () => a.branchFrom(message.id),
+                              ),
+                            ],
+                            _SmallAction(
+                              icon: AppIcons.delete,
+                              onTap: () => service.deleteMessage(message.id),
+                            ),
+                            if (message.usageJson case final u?) _UsageText(u),
+                          ],
+                        ),
+                      )
+                    : Align(
+                        alignment: Alignment.centerLeft,
+                        child: _SmallAction(
+                          icon: AppIcons.stop,
+                          onTap: () => service.stop(message.id),
+                        ),
                       ),
-                    )
-                  : Align(
-                      alignment: Alignment.centerLeft,
-                      child: _SmallAction(
-                        icon: AppIcons.stop,
-                        onTap: () => service.stop(message.id),
-                      ),
-                    ),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -761,7 +798,13 @@ class _AnswerGroupViewState extends ConsumerState<AnswerGroupView> {
     final colors = MiuixTheme.of(context).colors;
     final models = ref.watch(modelsProvider).value ?? const [];
     final agents = ref.watch(agentsProvider).value ?? const [];
-    final answers = widget.answers;
+    // 裁判点评单独显示在各回答下方，不参与切换。
+    final judge = widget.answers
+        .where((m) => m.kind == MsgKind.judge)
+        .firstOrNull;
+    final answers = widget.answers
+        .where((m) => m.kind != MsgKind.judge)
+        .toList();
     String label(Message m) => participantLabel(
       Participant(modelId: m.modelId ?? '', agentId: m.agentId),
       models,
@@ -814,30 +857,90 @@ class _AnswerGroupViewState extends ConsumerState<AnswerGroupView> {
     final wide =
         MediaQuery.sizeOf(context).width >= kWideBreakpoint &&
         answers.length <= 3;
-    if (wide) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    // 裁判点评卡片：等所有回答结束后才开始，被采纳时作为本轮结论。
+    Widget withJudge(Widget answersView) {
+      if (judge == null) return answersView;
+      final waiting =
+          judge.status == MsgStatus.pending &&
+          ContentPart.decodeList(judge.partsJson).isEmpty;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final (i, m) in answers.indexed) ...[
-            if (i > 0) const SizedBox(width: 12),
-            Expanded(
-              child: DoubleTapListener(
-                onDoubleTap: () => _adopt(m),
-                child: _AnswerCard(
-                  highlighted: m.adopted,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      header(m),
-                      const SizedBox(height: 8),
-                      AssistantMessage(message: m, showHeader: false),
-                    ],
+          answersView,
+          const SizedBox(height: 12),
+          HighlightCard(
+            highlighted: judge.adopted,
+            cornerRadius: 16,
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    MiuixIcon(
+                      vector: AppIcons.notes,
+                      size: 16,
+                      tint: colors.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: MiuixText(
+                        '裁判 · ${label(judge)}',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    PopSwitch(
+                      switchKey: (judge.adopted, waiting),
+                      child: judge.adopted
+                          ? _Badge('综合答案已采纳', color: colors.primary)
+                          : MiuixText(
+                              waiting ? '等待各回答完成' : '',
+                              fontSize: 12,
+                              color: colors.onSurfaceVariantSummary,
+                            ),
+                    ),
+                  ],
+                ),
+                if (!waiting) ...[
+                  const SizedBox(height: 8),
+                  AssistantMessage(message: judge, showHeader: false),
+                ],
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (wide) {
+      return withJudge(
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final (i, m) in answers.indexed) ...[
+              if (i > 0) const SizedBox(width: 12),
+              Expanded(
+                child: DoubleTapListener(
+                  onDoubleTap: () => _adopt(m),
+                  child: _AnswerCard(
+                    highlighted: m.adopted,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        header(m),
+                        const SizedBox(height: 8),
+                        AssistantMessage(message: m, showHeader: false),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       );
     }
 
@@ -846,121 +949,125 @@ class _AnswerGroupViewState extends ConsumerState<AnswerGroupView> {
       0,
       answers.length - 1,
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final (i, m) in answers.indexed)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: Tap(
-                    onTap: () => _switchTo(tab, i, answers.length),
-                    child: AnimatedContainer(
-                      duration: Motion.fast,
-                      curve: Motion.curve,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: ShapeDecoration(
-                        color: i == tab
-                            ? colors.primary
-                            : colors.surfaceContainer,
-                        shape: const MiuixSquircleBorder(cornerRadius: 10),
-                      ),
-                      child: AnimatedDefaultTextStyle(
+    return withJudge(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final (i, m) in answers.indexed)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Tap(
+                      onTap: () => _switchTo(tab, i, answers.length),
+                      child: AnimatedContainer(
                         duration: Motion.fast,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: i == tab ? colors.onPrimary : colors.onSurface,
+                        curve: Motion.curve,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
                         ),
-                        child: Text(
-                          '${m.adopted ? '✓ ' : ''}${label(m)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        decoration: ShapeDecoration(
+                          color: i == tab
+                              ? colors.primary
+                              : colors.surfaceContainer,
+                          shape: const MiuixSquircleBorder(cornerRadius: 10),
+                        ),
+                        child: AnimatedDefaultTextStyle(
+                          duration: Motion.fast,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: i == tab
+                                ? colors.onPrimary
+                                : colors.onSurface,
+                          ),
+                          child: Text(
+                            '${m.adopted ? '✓ ' : ''}${label(m)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        // 卡片上左右横滑切换回答（跟手拖动，两端有阻尼），双击采纳。
-        DoubleTapListener(
-          onDoubleTap: () => _adopt(answers[tab]),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onHorizontalDragStart: (_) => setState(() {
-              _dragging = true;
-              _drag = 0;
-            }),
-            onHorizontalDragUpdate: (d) {
-              final atEdge =
-                  (d.delta.dx > 0 && tab == 0) ||
-                  (d.delta.dx < 0 && tab == answers.length - 1);
-              setState(() => _drag += d.delta.dx * (atEdge ? 0.3 : 1));
-            },
-            onHorizontalDragEnd: (d) {
-              final v = d.primaryVelocity ?? 0;
-              final to = _drag < -60 || v < -400
-                  ? tab + 1
-                  : _drag > 60 || v > 400
-                  ? tab - 1
-                  : tab;
-              setState(() {
+          const SizedBox(height: 8),
+          // 卡片上左右横滑切换回答（跟手拖动，两端有阻尼），双击采纳。
+          DoubleTapListener(
+            onDoubleTap: () => _adopt(answers[tab]),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragStart: (_) => setState(() {
+                _dragging = true;
+                _drag = 0;
+              }),
+              onHorizontalDragUpdate: (d) {
+                final atEdge =
+                    (d.delta.dx > 0 && tab == 0) ||
+                    (d.delta.dx < 0 && tab == answers.length - 1);
+                setState(() => _drag += d.delta.dx * (atEdge ? 0.3 : 1));
+              },
+              onHorizontalDragEnd: (d) {
+                final v = d.primaryVelocity ?? 0;
+                final to = _drag < -60 || v < -400
+                    ? tab + 1
+                    : _drag > 60 || v > 400
+                    ? tab - 1
+                    : tab;
+                setState(() {
+                  _dragging = false;
+                  _drag = 0;
+                });
+                if (to != tab) {
+                  HapticFeedback.selectionClick();
+                  _switchTo(tab, to, answers.length);
+                }
+              },
+              onHorizontalDragCancel: () => setState(() {
                 _dragging = false;
                 _drag = 0;
-              });
-              if (to != tab) {
-                HapticFeedback.selectionClick();
-                _switchTo(tab, to, answers.length);
-              }
-            },
-            onHorizontalDragCancel: () => setState(() {
-              _dragging = false;
-              _drag = 0;
-            }),
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(end: _dragging ? _drag * 0.4 : 0),
-              duration: _dragging ? Duration.zero : Motion.medium,
-              curve: Motion.curve,
-              builder: (context, dx, child) =>
-                  Transform.translate(offset: Offset(dx, 0), child: child),
-              child: _AnswerCard(
-                highlighted: answers[tab].adopted,
-                child: _SlideSwitch(
-                  switchKey: answers[tab].id,
-                  direction: _dir,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      header(answers[tab]),
-                      const SizedBox(height: 8),
-                      AssistantMessage(
-                        message: answers[tab],
-                        showHeader: false,
-                      ),
-                    ],
+              }),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(end: _dragging ? _drag * 0.4 : 0),
+                duration: _dragging ? Duration.zero : Motion.medium,
+                curve: Motion.curve,
+                builder: (context, dx, child) =>
+                    Transform.translate(offset: Offset(dx, 0), child: child),
+                child: _AnswerCard(
+                  highlighted: answers[tab].adopted,
+                  child: _SlideSwitch(
+                    switchKey: answers[tab].id,
+                    direction: _dir,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        header(answers[tab]),
+                        const SizedBox(height: 8),
+                        AssistantMessage(
+                          message: answers[tab],
+                          showHeader: false,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 4, left: 4),
-          child: MiuixText(
-            '左右滑动切换 · 双击采纳',
-            fontSize: 11,
-            color: colors.onSurfaceVariantSummary.withValues(alpha: 0.7),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: MiuixText(
+              '左右滑动切换 · 双击采纳',
+              fontSize: 11,
+              color: colors.onSurfaceVariantSummary.withValues(alpha: 0.7),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1206,6 +1313,36 @@ class ChainGroupView extends ConsumerWidget {
       agents,
     );
     final doneCount = sorted.where((m) => m.status == MsgStatus.done).length;
+    final debate = sorted.any(
+      (m) => m.kind == MsgKind.debate || m.kind == MsgKind.summary,
+    );
+    // 辩论：每位辩手第几次发言 = 第几轮。
+    final speakers = <String>[];
+    final rounds = <String, int>{};
+    String stepLabel(Message m) {
+      if (m.kind == MsgKind.summary) return '总结 · ${label(m)}';
+      if (m.kind != MsgKind.debate) return label(m);
+      final key = '${m.modelId}|${m.agentId}';
+      final r = rounds[m.id] ??=
+          sorted
+              .takeWhile((s) => s.id != m.id)
+              .where(
+                (s) =>
+                    s.kind == MsgKind.debate &&
+                    '${s.modelId}|${s.agentId}' == key,
+              )
+              .length +
+          1;
+      return '${label(m)} · 第 $r 轮';
+    }
+
+    for (final m in sorted.where((m) => m.kind == MsgKind.debate)) {
+      final l = label(m);
+      if (!speakers.contains(l)) speakers.add(l);
+    }
+    final title = debate
+        ? '辩论 · ${speakers.join(' vs ')} · $doneCount/${sorted.length}'
+        : '接力分析 · ${sorted.map(label).join(' → ')} · $doneCount/${sorted.length}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1213,7 +1350,7 @@ class ChainGroupView extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: MiuixText(
-            '接力分析 · ${sorted.map(label).join(' → ')} · $doneCount/${sorted.length}',
+            title,
             fontSize: 12,
             color: colors.onSurfaceVariantSummary,
             maxLines: 2,
@@ -1224,7 +1361,7 @@ class ChainGroupView extends ConsumerWidget {
           _ChainStep(
             message: m,
             number: i + 1,
-            label: label(m),
+            label: stepLabel(m),
             isLast: i == sorted.length - 1,
           ),
       ],

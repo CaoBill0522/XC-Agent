@@ -16,7 +16,7 @@ class OpenAIChatAdapter extends ProtocolAdapter {
       for (final t in req.turns)
         {
           'role': t.role,
-          'content': t.images.isEmpty
+          'content': t.images.isEmpty && t.files.isEmpty
               ? t.text
               : [
                   if (t.text.isNotEmpty) {'type': 'text', 'text': t.text},
@@ -24,6 +24,11 @@ class OpenAIChatAdapter extends ProtocolAdapter {
                     {
                       'type': 'image_url',
                       'image_url': {'url': img.dataUrl},
+                    },
+                  for (final f in t.files)
+                    {
+                      'type': 'file',
+                      'file': {'filename': f.name, 'file_data': f.dataUrl},
                     },
                 ],
         },

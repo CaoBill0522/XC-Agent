@@ -11,6 +11,7 @@ import '../core/api/endpoint.dart';
 import '../core/api/protocol.dart';
 import '../core/chat/chat_types.dart';
 import '../core/chat/conversation_mode.dart';
+import '../core/chat/conversation_options.dart';
 import '../core/chat/participant.dart';
 import '../core/models/capabilities.dart';
 import '../core/routing/model_router.dart';
@@ -20,9 +21,38 @@ import 'image_store.dart';
 import 'repositories/channel_repository.dart';
 
 /// 待发送的图片（已压缩）。
+/// 搜索结果：标题命中（[messageId] 为空）或某条消息命中。
+class SearchHit {
+  const SearchHit({
+    required this.conversation,
+    required this.snippet,
+    required this.matchStart,
+    required this.matchLength,
+    this.messageId,
+    this.role,
+    this.time,
+  });
+
+  final Conversation conversation;
+  final String? messageId;
+  final String? role;
+  final DateTime? time;
+  final String snippet;
+  final int matchStart;
+  final int matchLength;
+}
+
 class PendingImage {
   const PendingImage(this.bytes, this.mime);
   final Uint8List bytes;
+  final String mime;
+}
+
+/// 待发送的附件文件（PDF 或文本类）。
+class PendingFile {
+  const PendingFile(this.bytes, this.name, this.mime);
+  final Uint8List bytes;
+  final String name;
   final String mime;
 }
 
@@ -68,6 +98,8 @@ class ChatService {
 
   // ──────────────── 会话
 
+  Future<List<Message>> messagesOf(String convId) => _db.messagesOf(convId);
+
   Future<Conversation?> conversation(String id) => (_db.select(
     _db.conversations,
   )..where((c) => c.id.equals(id))).getSingleOrNull();
@@ -96,16 +128,34 @@ class ChatService {
     return id;
   }
 
+  /// [options] 为 null 时保留原选项。写入时总是保留已有的上下文压缩摘要。
   Future<void> setParticipants(
     String convId,
     List<Participant> participants, {
     ConversationMode? mode,
-  }) =>
+    ConversationOptions? options,
+  }) async {
+    String? optionsJson;
+    if (options != null) {
+      final old = ConversationOptions.decode(
+        (await conversation(convId))?.optionsJson,
+      );
+      optionsJson = options.copyWith(memory: () => old.memory).encode();
+    }
+    await (_db.update(
+      _db.conversations,
+    )..where((c) => c.id.equals(convId))).write(
+      ConversationsCompanion(
+        participantsJson: Value(Participant.encodeList(participants)),
+        mode: Value(_modeFor(participants, mode).id),
+        optionsJson: Value.absentIfNull(optionsJson),
+      ),
+    );
+  }
+
+  Future<void> setOptions(String convId, ConversationOptions options) =>
       (_db.update(_db.conversations)..where((c) => c.id.equals(convId))).write(
-        ConversationsCompanion(
-          participantsJson: Value(Participant.encodeList(participants)),
-          mode: Value(_modeFor(participants, mode).id),
-        ),
+        ConversationsCompanion(optionsJson: Value(options.encode())),
       );
 
   /// 单个参与者总是单模型模式；多个参与者默认并问。
@@ -170,6 +220,196 @@ class ChatService {
     return true;
   }
 
+  // ──────────────── 分支
+
+  /// 从消息 [msgId] 处分出一个新对话：复制它及之前的所有消息（多 Agent / 接力 /
+  /// 裁判同组的回答一起复制），沿用原对话的模型、模式和选项。图片、附件各自
+  /// 复制一份，两个对话互不影响。返回新对话 id。
+  Future<String> branchFrom(String msgId) async {
+    final msg = await _message(msgId);
+    if (msg == null) throw ApiException('消息不存在');
+    final conv = await conversation(msg.conversationId);
+    if (conv == null) throw ApiException('对话不存在');
+    final ordered = await _db.messagesOf(conv.id);
+    final idx = ordered.indexWhere((m) => m.id == msgId);
+    final keep = [
+      ...ordered.sublist(0, idx + 1),
+      if (msg.groupId != null)
+        ...ordered.sublist(idx + 1).where((m) => m.groupId == msg.groupId),
+    ];
+
+    final id = newId();
+    final now = DateTime.now();
+    final idMap = <String, String>{};
+    final groupMap = <String, String>{};
+    final opts = ConversationOptions.decode(conv.optionsJson);
+    await _db.transaction(() async {
+      await _db
+          .into(_db.conversations)
+          .insert(
+            ConversationsCompanion.insert(
+              id: id,
+              title: '分支：${conv.title}',
+              mode: Value(conv.mode),
+              participantsJson: Value(conv.participantsJson),
+              webSearch: Value(conv.webSearch),
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
+      for (final m in keep) {
+        final newMsg = idMap[m.id] = newId();
+        final parts = <ContentPart>[];
+        for (final part in ContentPart.decodeList(m.partsJson)) {
+          switch (part) {
+            case ImagePart(:final path, :final mime):
+              if (await _images.duplicate(path) case final copy?) {
+                parts.add(ImagePart(copy, mime));
+              }
+            case FilePart(:final path, :final name, :final mime, :final size):
+              if (await _images.duplicate(path) case final copy?) {
+                parts.add(FilePart(copy, name, mime, size));
+              }
+            default:
+              parts.add(part);
+          }
+        }
+        await _db
+            .into(_db.messages)
+            .insert(
+              m
+                  .toCompanion(true)
+                  .copyWith(
+                    id: Value(newMsg),
+                    conversationId: Value(id),
+                    groupId: Value(
+                      m.groupId == null
+                          ? null
+                          : groupMap.putIfAbsent(m.groupId!, newId),
+                    ),
+                    partsJson: Value(ContentPart.encodeList(parts)),
+                    // 还在生成的回答在分支里算作已停止。
+                    status: Value(
+                      MsgStatus.isActive(m.status)
+                          ? MsgStatus.stopped
+                          : m.status,
+                    ),
+                  ),
+            );
+      }
+      // 压缩摘要只有覆盖范围都在分支里时才沿用。
+      final memory = opts.memory;
+      final keepMemory =
+          memory != null && idMap.containsKey(memory.untilMessageId);
+      await (_db.update(
+        _db.conversations,
+      )..where((c) => c.id.equals(id))).write(
+        ConversationsCompanion(
+          optionsJson: Value(
+            opts
+                .copyWith(
+                  memory: () => keepMemory
+                      ? ContextMemory(
+                          summary: memory.summary,
+                          untilMessageId: idMap[memory.untilMessageId]!,
+                        )
+                      : null,
+                )
+                .encode(),
+          ),
+        ),
+      );
+    });
+    return id;
+  }
+
+  // ──────────────── 搜索
+
+  /// 在所有对话的标题和消息内容里搜索 [query]（不区分大小写），最多 [limit] 条。
+  /// 标题命中的排在前面，其余按时间从新到旧。
+  Future<List<SearchHit>> search(String query, {int limit = 100}) async {
+    final q = query.trim();
+    if (q.isEmpty) return const [];
+    // LIKE 的通配符（% _）和转义符（反斜杠）要转义。
+    final escaped = q
+        .replaceAll(r'\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_');
+    final like = '%$escaped%';
+    final lower = q.toLowerCase();
+    final convs = {
+      for (final c in await _db.select(_db.conversations).get()) c.id: c,
+    };
+    final hits =
+        <SearchHit>[
+          for (final c in convs.values)
+            if (c.title.toLowerCase().contains(lower))
+              SearchHit(
+                conversation: c,
+                snippet: c.title,
+                matchStart: c.title.toLowerCase().indexOf(lower),
+                matchLength: q.length,
+              ),
+        ]..sort(
+          (a, b) =>
+              b.conversation.updatedAt.compareTo(a.conversation.updatedAt),
+        );
+
+    final rows = await _db
+        .customSelect(
+          "SELECT id FROM messages WHERE parts_json LIKE ? ESCAPE '\\' "
+          'ORDER BY created_at DESC LIMIT ?',
+          variables: [Variable.withString(like), Variable.withInt(limit * 3)],
+          readsFrom: {_db.messages},
+        )
+        .get();
+    final ids = [for (final r in rows) r.read<String>('id')];
+    final msgs = ids.isEmpty
+        ? <Message>[]
+        : await (_db.select(_db.messages)..where((m) => m.id.isIn(ids))).get();
+    msgs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    for (final m in msgs) {
+      if (hits.length >= limit) break;
+      final c = convs[m.conversationId];
+      if (c == null) continue;
+      // LIKE 也会匹配到 JSON 键名等，这里按真正的文字再确认一次。
+      final parts = ContentPart.decodeList(m.partsJson);
+      final text = [parts.quote ?? '', parts.text].join('\n');
+      final at = text.toLowerCase().indexOf(lower);
+      if (at < 0) continue;
+      final (snippet, start) = _snippet(text, at, q.length);
+      hits.add(
+        SearchHit(
+          conversation: c,
+          messageId: m.id,
+          role: m.role,
+          time: m.createdAt,
+          snippet: snippet,
+          matchStart: start,
+          matchLength: q.length,
+        ),
+      );
+    }
+    return hits;
+  }
+
+  /// 截取命中位置前后的一段文字，返回片段和命中在片段里的位置。
+  static (String, int) _snippet(String text, int at, int len) {
+    const before = 24, after = 60;
+    final from = (at - before).clamp(0, text.length);
+    final to = (at + len + after).clamp(0, text.length);
+    var s = text.substring(from, to).replaceAll(RegExp(r'\s+'), ' ');
+    // 换行折叠成空格会改变位置：重新定位。
+    final prefix = text.substring(from, at).replaceAll(RegExp(r'\s+'), ' ');
+    var start = prefix.length;
+    if (from > 0) {
+      s = '…$s';
+      start += 1;
+    }
+    if (to < text.length) s = '$s…';
+    return (s, start);
+  }
+
   // ──────────────── 追问
 
   /// 「新对话追问」对话的标题前缀（启动清理也按它识别没发过消息的追问对话）。
@@ -198,7 +438,6 @@ class ChatService {
   }) async* {
     final src = await _message(sourceMsgId);
     if (src == null) throw ApiException('原回答不存在');
-    final (:model, :agent, :candidates) = await _resolve(src);
 
     final history = [
       ...await _history(src),
@@ -217,11 +456,28 @@ class ChatService {
       ),
     ];
 
+    yield* _streamText(
+      modelId: src.modelId,
+      agentId: src.agentId,
+      turns: history,
+      cancel: cancel,
+    );
+  }
+
+  /// 用某个参与者做一次不落库的文字生成（总结、压缩），逐步产出已生成的完整文字。
+  /// 渠道失败时在开始输出前自动换下一个渠道。
+  Stream<String> _streamText({
+    required String? modelId,
+    required String? agentId,
+    required List<ChatTurn> turns,
+    CancelToken? cancel,
+  }) async* {
+    final (:model, :agent, :candidates) = await _resolveIds(modelId, agentId);
     for (final (i, route) in candidates.indexed) {
       final endpoint = await _channels.endpointFor(route.channel);
       final req = ChatRequest(
         model: route.route.upstreamModel,
-        turns: history,
+        turns: turns,
         system: agent?.systemPrompt,
         params: agent == null
             ? const GenParams()
@@ -259,6 +515,7 @@ class ChatService {
     String convId,
     String text, {
     List<PendingImage> images = const [],
+    List<PendingFile> files = const [],
     String? quote,
     String? context,
   }) async {
@@ -271,6 +528,7 @@ class ChatService {
       if (context case final c? when c.trim().isNotEmpty) ContextPart(c.trim()),
       if (quote case final q? when q.trim().isNotEmpty) QuotePart(q.trim()),
       for (final img in images) await _images.save(img.bytes, img.mime),
+      for (final f in files) await _images.saveFile(f.bytes, f.name, f.mime),
       if (text.trim().isNotEmpty) TextPart(text.trim()),
     ];
     final now = DateTime.now();
@@ -291,30 +549,84 @@ class ChatService {
       );
       await rename(
         convId,
-        t.isEmpty ? '图片' : (t.length > 30 ? '${t.substring(0, 30)}…' : t),
+        t.isEmpty
+            ? (files.isNotEmpty ? files.first.name : '图片')
+            : (t.length > 30 ? '${t.substring(0, 30)}…' : t),
       );
     }
 
-    await _startAnswers(conv, participants, after: now);
+    // 上下文过长且开启了自动压缩：先把早期对话压缩成摘要再回答。
+    var notice = const <ContentPart>[];
+    final opts = ConversationOptions.decode(conv.optionsJson);
+    if (opts.autoCompress && await contextTokens(convId) > autoCompressTokens) {
+      try {
+        await compress(convId);
+        notice = const [NoticePart('对话较长，已自动把早期内容压缩成摘要')];
+      } on ApiException {
+        // 压缩失败不影响正常回答。
+      }
+    }
+    await _startAnswers(
+      (await conversation(convId))!,
+      participants,
+      after: now,
+      notice: notice,
+    );
   }
 
   /// 为每个参与者创建一条助手消息并开始生成。多个参与者时共享 groupId。
-  /// 接力模式下按顺序逐个生成，其余模式并发生成。
+  /// - 接力 / 辩论：按步骤顺序逐个生成；
+  /// - 裁判：各自并发回答，全部结束后裁判点评并给出综合答案；
+  /// - 其余：并发生成。
   Future<void> _startAnswers(
     Conversation conv,
     List<Participant> participants, {
     required DateTime after,
+    List<ContentPart> notice = const [],
   }) async {
     final convId = conv.id;
     final groupId = newId();
-    final mode = ConversationMode.fromId(
+    final opts = ConversationOptions.decode(conv.optionsJson);
+    var mode = ConversationMode.fromId(
       conv.mode,
       participants: participants.length,
     );
-    final chain = mode == ConversationMode.chain && participants.length > 1;
+    if (participants.length < 2) mode = ConversationMode.single;
     final multi = participants.length > 1;
-    for (final (i, p) in participants.indexed) {
+
+    // 每条要生成的消息：(参与者, 种类, 步骤序号)。
+    final plan = <(Participant, String?, int?)>[];
+    switch (mode) {
+      case ConversationMode.chain:
+        for (final (i, p) in participants.indexed) {
+          plan.add((p, null, i));
+        }
+      case ConversationMode.debate:
+        for (var r = 0; r < opts.rounds; r++) {
+          for (final p in participants) {
+            plan.add((p, MsgKind.debate, plan.length));
+          }
+        }
+        plan.add((
+          opts.judge ?? participants.first,
+          MsgKind.summary,
+          plan.length,
+        ));
+      case ConversationMode.judge:
+        for (final p in participants) {
+          plan.add((p, null, null));
+        }
+        plan.add((opts.judge ?? participants.first, MsgKind.judge, null));
+      case ConversationMode.single || ConversationMode.multi:
+        for (final p in participants) {
+          plan.add((p, null, null));
+        }
+    }
+
+    final ids = <String>[];
+    for (final (i, (p, kind, step)) in plan.indexed) {
       final id = newId();
+      ids.add(id);
       await _db.addMessage(
         MessagesCompanion.insert(
           id: id,
@@ -324,15 +636,37 @@ class ChatService {
           adopted: Value(!multi),
           modelId: Value(p.modelId),
           agentId: Value(p.agentId),
-          stepIndex: Value(chain ? i : null),
+          stepIndex: Value(step),
+          kind: Value(kind),
+          partsJson: Value(ContentPart.encodeList(i == 0 ? notice : const [])),
           status: const Value(MsgStatus.pending),
           // 同组消息按参与者顺序排列。
           createdAt: after.add(Duration(microseconds: i + 1)),
         ),
       );
-      if (!chain) unawaited(_generate(id));
     }
-    if (chain) unawaited(_runChain(groupId, from: 0));
+
+    if (mode.isSequential) {
+      unawaited(_runChain(groupId, from: 0));
+    } else if (mode == ConversationMode.judge) {
+      final answers = [
+        for (final id in ids.take(ids.length - 1)) _generate(id),
+      ];
+      unawaited(Future.wait(answers).then((_) => _runJudge(ids.last)));
+    } else {
+      for (final id in ids) {
+        unawaited(_generate(id));
+      }
+    }
+  }
+
+  /// 裁判：所有回答结束后生成点评与综合答案，成功则作为本轮结论被采纳。
+  Future<void> _runJudge(String judgeId) async {
+    final judge = await _message(judgeId);
+    if (judge == null || judge.status == MsgStatus.stopped) return;
+    await _generate(judgeId);
+    final done = await _message(judgeId);
+    if (done?.status == MsgStatus.done) await adopt(judgeId);
   }
 
   // ──────────────── 接力分析
@@ -407,11 +741,14 @@ class ChatService {
     return model?.displayName ?? m.upstreamModel ?? '上一个模型';
   }
 
-  /// 接力步骤：把上下文最后一条用户消息换成「原始问题 + 上一步结果」。
+  /// 接力 / 辩论 / 裁判：把上下文最后一条用户消息换成组合后的提示。
   Future<List<ChatTurn>> _chainHistory(
     Message msg,
     List<ChatTurn> history,
   ) async {
+    if (msg.kind != null && msg.groupId != null) {
+      return _replaceLastUser(history, (q) => _specialPrompt(msg, q));
+    }
     final step = msg.stepIndex;
     if (step == null || step == 0 || msg.groupId == null) return history;
     final prev = (await _chainSteps(msg.groupId!))
@@ -434,6 +771,71 @@ class ChatService {
     ];
   }
 
+  Future<List<ChatTurn>> _replaceLastUser(
+    List<ChatTurn> history,
+    Future<String> Function(String question) compose,
+  ) async {
+    final idx = history.lastIndexWhere((t) => t.role == 'user');
+    if (idx < 0) return history;
+    final original = history[idx];
+    return [
+      ...history.sublist(0, idx),
+      ChatTurn(
+        role: 'user',
+        text: await compose(original.text),
+        images: original.images,
+        files: original.files,
+      ),
+      ...history.sublist(idx + 1),
+    ];
+  }
+
+  /// 裁判点评 / 辩论发言 / 辩论总结的提示。
+  Future<String> _specialPrompt(Message msg, String question) async {
+    final group = await (_db.select(
+      _db.messages,
+    )..where((m) => m.groupId.equals(msg.groupId!))).get();
+    if (msg.kind == MsgKind.judge) {
+      final answers =
+          group
+              .where((m) => m.kind == null && m.status == MsgStatus.done)
+              .toList()
+            ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return buildJudgePrompt(
+        question: question,
+        answers: [
+          for (final a in answers)
+            (await _labelOf(a), ContentPart.decodeList(a.partsJson).text),
+        ],
+      );
+    }
+    final steps = group.where((m) => m.stepIndex != null).toList()
+      ..sort((a, b) => a.stepIndex!.compareTo(b.stepIndex!));
+    final before = steps.where(
+      (s) => s.stepIndex! < msg.stepIndex! && s.status == MsgStatus.done,
+    );
+    final speakers = steps.where((s) => s.kind == MsgKind.debate).toList();
+    final perRound = {for (final s in speakers) '${s.modelId}|${s.agentId}'}
+        .length
+        .clamp(1, 1 << 20);
+    final rounds = (speakers.length / perRound).ceil();
+    final myIndex = speakers.indexWhere((s) => s.id == msg.id);
+    return buildDebatePrompt(
+      question: question,
+      transcript: [
+        for (final s in before)
+          (
+            '${await _labelOf(s)}（第 ${speakers.indexOf(s) ~/ perRound + 1} 轮）',
+            ContentPart.decodeList(s.partsJson).text,
+          ),
+      ],
+      speaker: await _labelOf(msg),
+      round: myIndex < 0 ? rounds : myIndex ~/ perRound + 1,
+      rounds: rounds,
+      summary: msg.kind == MsgKind.summary,
+    );
+  }
+
   // ──────────────── 生成
 
   Future<Message?> _message(String id) => (_db.select(
@@ -445,15 +847,18 @@ class ChatService {
 
   /// 一条助手消息对应的模型、助手和按路由策略排好序的候选渠道。
   Future<({ModelWithRoutes model, Agent? agent, List<RouteInfo> candidates})>
-  _resolve(Message msg) async {
+  _resolve(Message msg) => _resolveIds(msg.modelId, msg.agentId);
+
+  Future<({ModelWithRoutes model, Agent? agent, List<RouteInfo> candidates})>
+  _resolveIds(String? modelId, String? agentId) async {
     final models = await _channels.watchModels().first;
-    final model = models.where((m) => m.model.id == msg.modelId).firstOrNull;
+    final model = models.where((m) => m.model.id == modelId).firstOrNull;
     if (model == null) throw ApiException('模型不存在或已被删除，请重新选择');
-    final agent = msg.agentId == null
+    final agent = agentId == null
         ? null
         : await (_db.select(
             _db.agents,
-          )..where((a) => a.id.equals(msg.agentId!))).getSingleOrNull();
+          )..where((a) => a.id.equals(agentId))).getSingleOrNull();
     final candidates = _router.order(model);
     if (candidates.isEmpty) {
       throw ApiException('「${model.model.displayName}」没有可用渠道（渠道可能已停用）');
@@ -486,7 +891,9 @@ class ChatService {
         webSearch: conv.webSearch,
         cancel: cancel,
       );
-      if (msg.stepIndex == null) await _adoptIfFirst(msgId);
+      if (msg.stepIndex == null && msg.kind == null) {
+        await _adoptIfFirst(msgId);
+      }
     } on ApiException catch (e) {
       if (cancel.isCancelled) {
         await _update(
@@ -550,7 +957,9 @@ class ChatService {
         ),
       );
 
-      var acc = _Accumulator(_images);
+      // 生成前已有的提示（如「已自动压缩」）保留在回答里。
+      final notices = ContentPart.decodeList(msg.partsJson).notices;
+      var acc = _Accumulator(_images)..extra.addAll(notices);
       try {
         if (inferModelProfile(upstream).kind == ModelKind.image) {
           await _generateImage(msg, endpoint, upstream, history, acc, cancel);
@@ -616,6 +1025,7 @@ class ChatService {
               }
               _noResponsesSearch.add(key);
               acc = _Accumulator(_images)
+                ..extra.addAll(notices)
                 ..extra.add(const NoticePart(noSearchNotice));
               await _stream(
                 msg.id,
@@ -744,23 +1154,194 @@ class ChatService {
     final ordered = await _db.messagesOf(target.conversationId);
     final idx = ordered.indexWhere((m) => m.id == target.id);
     final all = idx < 0 ? ordered : ordered.sublist(0, idx);
+    final conv = await conversation(target.conversationId);
+    final (msgs, summary) = selectContext(
+      all,
+      ConversationOptions.decode(conv?.optionsJson),
+    );
+    return [
+      ...summaryTurns(summary),
+      ...await _toTurns(msgs, excludeGroup: target.groupId),
+    ];
+  }
+
+  /// 按会话的上下文设置挑出要发送的消息：先去掉已压缩成摘要的部分，
+  /// 再只保留最近 N 轮（N = contextTurns，当前问题算一轮）。返回 (消息, 摘要)。
+  static (List<Message>, String?) selectContext(
+    List<Message> all,
+    ConversationOptions opts,
+  ) {
+    var msgs = all;
+    String? summary;
+    if (opts.memory case final mem?) {
+      final i = msgs.indexWhere((m) => m.id == mem.untilMessageId);
+      if (i >= 0) {
+        msgs = msgs.sublist(i + 1);
+        summary = mem.summary;
+      }
+    }
+    if (opts.contextTurns case final n? when n > 0) {
+      final users = [
+        for (final (i, m) in msgs.indexed)
+          if (m.role == 'user') i,
+      ];
+      if (users.length > n) msgs = msgs.sublist(users[users.length - n]);
+    }
+    return (msgs, summary);
+  }
+
+  static List<ChatTurn> summaryTurns(String? summary) => summary == null
+      ? const []
+      : [
+          ChatTurn(role: 'user', text: '【之前对话的摘要】\n$summary'),
+          const ChatTurn(role: 'assistant', text: '好的，我已了解之前的对话内容。'),
+        ];
+
+  /// 消息转成发给模型的上下文：用户消息（含图片、附件），以及被采纳且已完成的回答。
+  Future<List<ChatTurn>> _toTurns(
+    List<Message> msgs, {
+    String? excludeGroup,
+  }) async {
     final turns = <ChatTurn>[];
-    for (final m in all) {
+    for (final m in msgs) {
       final parts = ContentPart.decodeList(m.partsJson);
       if (m.role == 'user') {
         final imgs = <InlineImage>[
           for (final p in parts.images) ?await _images.readInline(p),
         ];
-        turns.add(ChatTurn(role: 'user', text: parts.promptText, images: imgs));
+        // 文本类附件并入问题，PDF 原样发送。
+        final texts = <String>[];
+        final pdfs = <InlineFile>[];
+        for (final f in parts.files) {
+          final bytes = await _images.readBytes(f.path);
+          if (bytes == null) continue;
+          if (f.isPdf) {
+            pdfs.add(
+              InlineFile(
+                name: f.name,
+                mime: f.mime,
+                base64: base64Encode(bytes),
+              ),
+            );
+          } else {
+            texts.add(
+              fileAsPrompt(f.name, utf8.decode(bytes, allowMalformed: true)),
+            );
+          }
+        }
+        turns.add(
+          ChatTurn(
+            role: 'user',
+            text: [
+              ...texts,
+              parts.promptText,
+            ].where((t) => t.isNotEmpty).join('\n\n'),
+            images: imgs,
+            files: pdfs,
+          ),
+        );
       } else if (m.role == 'assistant' &&
           m.adopted &&
-          m.groupId != target.groupId &&
+          (excludeGroup == null || m.groupId != excludeGroup) &&
           (m.status == MsgStatus.done || m.status == MsgStatus.stopped) &&
           parts.text.isNotEmpty) {
         turns.add(ChatTurn(role: 'assistant', text: parts.text));
       }
     }
     return turns;
+  }
+
+  // ──────────────── 上下文管理
+
+  /// 自动压缩的阈值（估算 token）。
+  static const autoCompressTokens = 24000;
+
+  /// 压缩时保留原样的最近轮数。
+  static const keepRecentTurns = 2;
+
+  /// 估算下一次请求要携带的上下文 token 数（不含图片和 PDF）。
+  Future<int> contextTokens(String convId) async {
+    final conv = await conversation(convId);
+    final (msgs, summary) = selectContext(
+      await _db.messagesOf(convId),
+      ConversationOptions.decode(conv?.optionsJson),
+    );
+    var n = summary == null ? 0 : estimateTokens(summary);
+    for (final m in msgs) {
+      final parts = ContentPart.decodeList(m.partsJson);
+      if (m.role == 'user') {
+        n += estimateTokens(parts.promptText);
+        for (final f in parts.files.where((f) => !f.isPdf)) {
+          n += f.size ~/ 3;
+        }
+      } else if (m.adopted && m.role == 'assistant') {
+        n += estimateTokens(parts.text);
+      }
+    }
+    return n;
+  }
+
+  /// 把早期对话（最近 [keepRecentTurns] 轮之前、上次摘要之后）连同上次的摘要一起，
+  /// 用第一位参与者总结成新的摘要。之后的请求不再原样发送这部分。
+  Future<void> compress(String convId) async {
+    final conv = await conversation(convId);
+    if (conv == null) return;
+    final participants = Participant.decodeList(conv.participantsJson);
+    if (participants.isEmpty) throw ApiException('请先选择模型');
+    final opts = ConversationOptions.decode(conv.optionsJson);
+    final ordered = (await _db.messagesOf(convId))
+        .where((m) => !MsgStatus.isActive(m.status))
+        .toList();
+    final (msgs, oldSummary) = selectContext(
+      ordered,
+      opts.copyWith(contextTurns: () => null),
+    );
+    final users = [
+      for (final (i, m) in msgs.indexed)
+        if (m.role == 'user') i,
+    ];
+    if (users.length <= keepRecentTurns) {
+      throw ApiException('对话还很短，不需要压缩');
+    }
+    final cut = users[users.length - keepRecentTurns];
+    final early = msgs.sublist(0, cut);
+    final turns = [
+      ...summaryTurns(oldSummary),
+      ...await _toTurns(early),
+      const ChatTurn(
+        role: 'user',
+        text:
+            '请把以上对话压缩成一份摘要，供之后的对话作为背景：保留我的问题和需求、'
+            '重要的事实与数据、已经得出的结论和尚未解决的问题，省略寒暄和重复内容。'
+            '直接输出摘要，控制在 600 字以内。',
+      ),
+    ];
+    var summary = '';
+    await for (final t in _streamText(
+      modelId: participants.first.modelId,
+      agentId: participants.first.agentId,
+      turns: turns,
+    )) {
+      summary = t;
+    }
+    await setOptions(
+      convId,
+      opts.copyWith(
+        memory: () => ContextMemory(
+          summary: summary.trim(),
+          untilMessageId: early.last.id,
+        ),
+      ),
+    );
+  }
+
+  Future<void> clearCompression(String convId) async {
+    final conv = await conversation(convId);
+    if (conv == null) return;
+    await setOptions(
+      convId,
+      ConversationOptions.decode(conv.optionsJson).copyWith(memory: () => null),
+    );
   }
 
   /// 多 Agent：组内第一个完成的回答自动被采纳。
@@ -792,7 +1373,7 @@ class ChatService {
       if (_cancels.containsKey(m.id)) {
         stop(m.id);
       } else if (m.status == MsgStatus.pending) {
-        // 接力中还没轮到的步骤。
+        // 接力 / 辩论中还没轮到的步骤、还没开始的裁判。
         await _update(
           m.id,
           const MessagesCompanion(
@@ -810,6 +1391,7 @@ class ChatService {
     if (msg.stepIndex != null && msg.groupId != null) {
       return _regenerateChainFrom(msg.groupId!, msg.stepIndex!);
     }
+    final isJudge = msg.kind == MsgKind.judge;
     stop(msgId);
     await _deleteImagesOf([msg]);
     await _update(
@@ -821,7 +1403,7 @@ class ChatService {
         usageJson: Value(null),
       ),
     );
-    unawaited(_generate(msgId));
+    unawaited(isJudge ? _runJudge(msgId) : _generate(msgId));
   }
 
   /// 接力：从第 [step] 步起全部重新生成（后面的步骤依赖前面的结果）。
@@ -891,6 +1473,7 @@ class ChatService {
       ...parts.whereType<ContextPart>(),
       ...parts.whereType<QuotePart>(),
       ...parts.images,
+      ...parts.files,
       if (newText.trim().isNotEmpty) TextPart(newText.trim()),
     ];
     await _update(
@@ -905,8 +1488,12 @@ class ChatService {
 
   Future<void> _deleteImagesOf(List<Message> msgs) async {
     for (final m in msgs) {
-      for (final img in ContentPart.decodeList(m.partsJson).images) {
+      final parts = ContentPart.decodeList(m.partsJson);
+      for (final img in parts.images) {
         await _images.delete(img.path);
+      }
+      for (final f in parts.files) {
+        await _images.delete(f.path);
       }
     }
   }

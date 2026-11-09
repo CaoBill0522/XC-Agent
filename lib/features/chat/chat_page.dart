@@ -9,6 +9,7 @@ import '../../core/api/protocol.dart';
 import '../../core/chat/conversation_mode.dart';
 import '../../core/chat/participant.dart';
 import '../../data/chat_service.dart';
+import '../../data/image_store.dart';
 import '../../data/providers.dart';
 import '../../ui/animated_keyed_list.dart';
 import '../../ui/app_icons.dart';
@@ -21,6 +22,8 @@ import 'message_views.dart';
 import 'participant_picker.dart';
 import '../../ui/top_bar_text.dart';
 import '../../ui/scroll_anchor.dart';
+import '../search/search_page.dart';
+import 'export.dart';
 import 'follow_up.dart';
 
 /// 聊天页。[embedded] 为 true 时嵌在桌面双栏右侧（不显示返回按钮）。
@@ -46,6 +49,28 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   // dispose 时 ref 已不可用，提前取好。
   late final ChatService _service;
   final _anchor = ScrollAnchor();
+  final _list = ScrollController();
+
+  /// 从搜索结果打开时要定位并高亮的消息。
+  String? _focusId;
+  final _focusKey = GlobalKey();
+  bool _flash = false;
+  bool _focusStarted = false;
+
+  /// 顶栏标题两侧的边距：按钮区（16 边距 + 每个 40 宽）再加 8 间隙。
+  static double _titleInset({required bool hasBack, required int actions}) {
+    const edge = 16.0, button = 40.0, gap = 8.0;
+    final left = hasBack ? edge + button : 0.0;
+    final right = edge + button * actions;
+    return (left > right ? left : right) + gap;
+  }
+
+  static bool _contains(ChatItem item, String? id) =>
+      id != null &&
+      switch (item) {
+        SingleItem(:final message) => message.id == id,
+        AnswerGroupItem(:final answers) => answers.any((m) => m.id == id),
+      };
   final _clearSelections = ValueNotifier<int>(0);
 
   /// 由「新对话追问」打开：离开时若一条消息都没发，就删掉这个对话。
@@ -55,6 +80,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void initState() {
     super.initState();
     _service = ref.read(chatServiceProvider);
+    _focusId = ref.read(pendingFocusProvider).take(widget.conversationId);
     final draft = ref.read(pendingDraftsProvider).take(widget.conversationId);
     if (draft != null) {
       _isFollowUp = true;
@@ -64,6 +90,45 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _quoteHere(String selection) => _input.setQuote(selection);
+
+  /// 把 [_focusId] 所在的消息滚到可视区并闪一下。列表是懒加载的，目标还没
+  /// 构建时先往更早的方向翻页，直到它出现。
+  Future<void> _scrollToFocus() async {
+    await WidgetsBinding.instance.endOfFrame;
+    for (var i = 0; i < 80 && mounted; i++) {
+      final ctx = _focusKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        await Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.5,
+          duration: Motion.medium,
+          curve: Motion.curve,
+        );
+        if (!mounted) return;
+        setState(() => _flash = true);
+        await Future<void>.delayed(const Duration(milliseconds: 1400));
+        if (mounted) setState(() => _flash = false);
+        return;
+      }
+      if (!_list.hasClients) {
+        await WidgetsBinding.instance.endOfFrame;
+        continue;
+      }
+      final pos = _list.position;
+      if (pos.pixels >= pos.maxScrollExtent) {
+        // 已到最早的消息仍没找到（可能被删了）。
+        if (i > 3) return;
+      } else {
+        pos.jumpTo(
+          (pos.pixels + pos.viewportDimension * 0.8).clamp(
+            pos.minScrollExtent,
+            pos.maxScrollExtent,
+          ),
+        );
+      }
+      await WidgetsBinding.instance.endOfFrame;
+    }
+  }
 
   Future<void> _askInNew(String sourceMsgId, String selection) async {
     try {
@@ -77,15 +142,26 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               summary: SummaryJob.start(_service, sourceMsgId, selection),
             ),
           );
-      if (!mounted) return;
-      if (widget.embedded) {
-        // 宽屏：右栏切到新对话。
-        ref.read(selectedConversationProvider.notifier).select(id);
-      } else {
-        // 窄屏：压在当前对话之上，返回即回到原对话。
-        await Navigator.of(context)
-            .push(appRoute(ChatPage(conversationId: id)));
-      }
+      await _openConversation(id);
+    } on ApiException catch (e) {
+      _toast(e.message);
+    }
+  }
+
+  /// 打开另一个对话：宽屏切换右栏；窄屏压在当前对话之上，返回即回到原对话。
+  Future<void> _openConversation(String id) async {
+    if (!mounted) return;
+    if (widget.embedded) {
+      ref.read(selectedConversationProvider.notifier).select(id);
+    } else {
+      await Navigator.of(context).push(appRoute(ChatPage(conversationId: id)));
+    }
+  }
+
+  Future<void> _branchFrom(String msgId) async {
+    try {
+      final id = await _service.branchFrom(msgId);
+      await _openConversation(id);
     } on ApiException catch (e) {
       _toast(e.message);
     }
@@ -99,6 +175,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         .discardIfEmpty(widget.conversationId, force: _isFollowUp)
         .catchError((Object _) => false);
     _input.dispose();
+    _list.dispose();
     _clearSelections.dispose();
     _snackbar.dispose();
     _inputHeight.dispose();
@@ -162,6 +239,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           );
     });
     final items = ChatItem.group(messages);
+    if (_focusId != null && messagesAsync.hasValue && !_focusStarted) {
+      _focusStarted = true;
+      _scrollToFocus();
+    }
 
     final body = Column(
       children: [
@@ -197,6 +278,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         reverse: true,
                         // 接力步骤展开 / 收起时顶部不动、只往下伸缩。
                         physics: AnchoredScrollPhysics(anchor: _anchor),
+                        controller: _list,
                         // reverse 列表的第 0 项在最底部（最新）。
                         items: items.reversed.toList(),
                         keyOf: _itemKey,
@@ -204,22 +286,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           horizontal: chatGutter(context, box.maxWidth),
                           vertical: 12,
                         ),
-                        itemBuilder: (context, item) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: switch (item) {
-                            SingleItem(:final message)
-                                when message.role == 'user' =>
-                              UserBubble(message: message),
-                            SingleItem(:final message) => AssistantMessage(
-                              message: message,
-                            ),
-                            AnswerGroupItem(:final answers, :final isChain)
-                                when isChain =>
-                              ChainGroupView(steps: answers),
-                            AnswerGroupItem(:final answers) => AnswerGroupView(
-                              answers: answers,
-                            ),
-                          },
+                        itemBuilder: (context, item) => _FocusFlash(
+                          key: _contains(item, _focusId) ? _focusKey : null,
+                          active: _flash && _contains(item, _focusId),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: switch (item) {
+                              SingleItem(:final message)
+                                  when message.role == 'user' =>
+                                UserBubble(message: message),
+                              SingleItem(:final message) => AssistantMessage(
+                                message: message,
+                              ),
+                              AnswerGroupItem(:final answers, :final isChain)
+                                  when isChain =>
+                                ChainGroupView(steps: answers),
+                              AnswerGroupItem(:final answers) =>
+                                AnswerGroupView(answers: answers),
+                            },
+                          ),
                         ),
                       ),
                     ),
@@ -249,9 +334,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       topBar: TopBarTextFix(
         child: MiuixSmallTopAppBar(
           title: conv?.title ?? '',
+          // miuix 的小标题只留固定 26 的边距，不避让两侧按钮，长标题会压在
+          // 返回 / 分享 / 设置按钮上。按较宽一侧的按钮宽度留出对称边距，标题仍居中。
+          titlePadding: _titleInset(
+            hasBack: !widget.embedded,
+            actions: messages.isNotEmpty ? 2 : 1,
+          ),
           // miuix 的 subtitle 不限制行数，长了会换行挤压内容；改为单行省略。
           bottomContent: Padding(
-            padding: const EdgeInsets.fromLTRB(56, 0, 56, 6),
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 6),
             child: Center(
               child: MiuixText(
                 subtitle,
@@ -268,7 +359,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   icon: AppIcons.back,
                   onPressed: () => Navigator.of(context).maybePop(),
                 ),
-          actions: [AppIconButton(icon: AppIcons.tune, onPressed: _openPicker)],
+          actions: [
+            if (messages.isNotEmpty)
+              AppIconButton(
+                icon: AppIcons.share,
+                onPressed: () => showExportSheet(
+                  context,
+                  ref,
+                  conversationId: widget.conversationId,
+                  toast: _toast,
+                ),
+              ),
+            AppIconButton(icon: AppIcons.tune, onPressed: _openPicker),
+          ],
         ),
       ),
       content: (padding) => Material(
@@ -282,7 +385,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             onDragDone: (details) async {
               setState(() => _dragging = false);
               for (final f in details.files) {
-                await _input.addImageBytes(await f.readAsBytes());
+                final bytes = await f.readAsBytes();
+                if (sniffImageMime(bytes) != null) {
+                  await _input.addImageBytes(bytes);
+                } else if (_input.addFile(bytes, f.name) case final error?) {
+                  _toast(error);
+                }
               }
             },
             child: Stack(
@@ -291,6 +399,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   quoteHere: _quoteHere,
                   askInNew: _askInNew,
                   clearSelections: _clearSelections,
+                  branchFrom: _branchFrom,
+                  shareMessage: (id) => showExportSheet(
+                    context,
+                    ref,
+                    conversationId: widget.conversationId,
+                    onlyMessageId: id,
+                    toast: _toast,
+                  ),
                   child: body,
                 ),
                 Positioned.fill(
@@ -368,6 +484,8 @@ class _EmptyChat extends StatelessWidget {
         ConversationMode.single => AppIcons.reply,
         ConversationMode.multi => AppIcons.replyAll,
         ConversationMode.chain => AppIcons.sort,
+        ConversationMode.judge => AppIcons.notes,
+        ConversationMode.debate => AppIcons.merge,
       };
       Widget icon(MiuixVectorIcon v) => Padding(
         padding: const EdgeInsets.only(right: 14),
@@ -470,6 +588,28 @@ class _Hint extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// 搜索定位到的消息：背景淡入淡出闪一下。
+class _FocusFlash extends StatelessWidget {
+  const _FocusFlash({super.key, required this.active, required this.child});
+
+  final bool active;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
+    return AnimatedContainer(
+      duration: Motion.medium,
+      curve: Motion.curve,
+      decoration: ShapeDecoration(
+        color: colors.primary.withValues(alpha: active ? 0.10 : 0),
+        shape: const MiuixSquircleBorder(cornerRadius: 16),
+      ),
+      child: child,
     );
   }
 }

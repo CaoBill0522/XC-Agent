@@ -6,17 +6,29 @@ import 'tables.dart';
 part 'app_database.g.dart';
 
 @DriftDatabase(
-  tables: [Channels, Models, ModelRoutes, Agents, Conversations, Messages],
+  tables: [
+    Channels,
+    Models,
+    ModelRoutes,
+    Agents,
+    Conversations,
+    Messages,
+    Prompts,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
     : super(executor ?? driftDatabase(name: 'agent'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) async {
+      await m.createAll();
+      await _seedPrompts();
+    },
     onUpgrade: (m, from, to) async {
       if (from < 2) await m.addColumn(models, models.matchKey);
       if (from < 3) {
@@ -24,6 +36,14 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(conversations, conversations.webSearch);
       }
       if (from < 4) await m.addColumn(messages, messages.stepIndex);
+      if (from < 5) {
+        await m.addColumn(models, models.inputPrice);
+        await m.addColumn(models, models.outputPrice);
+        await m.addColumn(conversations, conversations.optionsJson);
+        await m.addColumn(messages, messages.kind);
+        await m.createTable(prompts);
+        await _seedPrompts();
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -41,6 +61,34 @@ class AppDatabase extends _$AppDatabase {
       );
     },
   );
+
+  /// 内置的几条常用提示词，用户可以改删。
+  static const defaultPrompts = [
+    ('翻译成英文', '把下面的内容翻译成地道的英文，只输出译文：\n\n'),
+    ('总结要点', '用几条要点总结下面的内容，每条一句话：\n\n'),
+    ('检查代码', '检查下面的代码有没有 bug、边界情况和可以改进的地方，按严重程度列出：\n\n'),
+    ('润色文字', '在不改变原意的前提下润色下面的文字，让它更通顺自然：\n\n'),
+    ('通俗解释', '用通俗易懂的话解释下面的内容，必要时举个例子：\n\n'),
+  ];
+
+  Future<void> _seedPrompts() async {
+    for (final (i, (title, content)) in defaultPrompts.indexed) {
+      await into(prompts).insert(
+        PromptsCompanion.insert(
+          id: 'builtin-$i',
+          title: title,
+          content: content,
+          sortOrder: Value(i),
+        ),
+      );
+    }
+  }
+
+  // ---------- 提示词 ----------
+
+  Stream<List<Prompt>> watchPrompts() => (select(
+    prompts,
+  )..orderBy([(p) => OrderingTerm.asc(p.sortOrder)])).watch();
 
   // ---------- 会话 ----------
 

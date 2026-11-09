@@ -103,6 +103,9 @@ class _ModelDetailPageState extends ConsumerState<ModelDetailPage> {
 
   ChannelRepository get _repo => ref.read(channelRepositoryProvider);
 
+  static String _fmtPrice(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : '$v';
+
   Future<void> _editNumber(
     BuildContext context,
     String title,
@@ -163,6 +166,41 @@ class _ModelDetailPageState extends ConsumerState<ModelDetailPage> {
               value: m.model.enabled,
               onChanged: (v) => _repo.updateModel(m.model.id, enabled: v),
             ),
+          ],
+        ),
+        SettingsGroup(
+          title: '单价（每百万 token，用于用量统计）',
+          children: [
+            for (final (input, label) in [(true, '输入'), (false, '输出')])
+              MiuixArrowPreference(
+                title: '$label单价',
+                summary: switch (input
+                    ? m.model.inputPrice
+                    : m.model.outputPrice) {
+                  null => '未设置',
+                  final v => _fmtPrice(v),
+                },
+                onClick: () async {
+                  final cur = input ? m.model.inputPrice : m.model.outputPrice;
+                  final v = await showTextInput(
+                    context,
+                    title: '$label单价（每百万 token）',
+                    initial: cur == null ? '' : _fmtPrice(cur),
+                    label: '留空表示未设置',
+                    autocorrect: false,
+                  );
+                  if (v == null) return;
+                  final price = double.tryParse(v.trim());
+                  if (v.trim().isNotEmpty && (price == null || price < 0)) {
+                    return;
+                  }
+                  await _repo.setModelPrice(
+                    m.model.id,
+                    input: input ? price : m.model.inputPrice,
+                    output: input ? m.model.outputPrice : price,
+                  );
+                },
+              ),
           ],
         ),
         SettingsGroup(

@@ -1,3 +1,5 @@
+import 'package:agent/ui/app_icons.dart';
+import 'package:agent/features/chat/chat_page.dart';
 import 'package:agent/core/chat/chat_types.dart';
 import 'package:agent/data/chat_service.dart';
 import 'package:agent/data/db/app_database.dart';
@@ -241,5 +243,63 @@ void main() {
       screen.height - card.bottom,
       moreOrLessEquals(card.left, epsilon: 0.5),
     );
+  });
+
+  testWidgets('聊天页顶栏：长标题不压住两侧按钮', (tester) async {
+    tester.view.physicalSize = const Size(402, 874);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final conv = Conversation(
+      id: 'c',
+      title: '用几条要点总结下面的内容，每条一句话，这是一个很长很长的标题',
+      mode: 'single',
+      agentIdsJson: '[]',
+      participantsJson: '[{"modelId":"m"}]',
+      webSearch: false,
+      optionsJson: '{}',
+      pinned: false,
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          modelsProvider.overrideWith(
+            (ref) => Stream.value(const <ModelWithRoutes>[]),
+          ),
+          agentsProvider.overrideWith((ref) => Stream.value(const <Agent>[])),
+          conversationProvider.overrideWith((ref, id) => conv),
+          messagesProvider.overrideWith(
+            (ref, id) => Stream.value([
+              Message(
+                id: 'u',
+                conversationId: 'c',
+                role: 'user',
+                partsJson: '[{"type":"text","text":"hi"}]',
+                adopted: true,
+                status: 'done',
+                createdAt: DateTime(2026),
+              ),
+            ]),
+          ),
+        ],
+        child: MiuixTheme(
+          data: MiuixThemeData.of(Brightness.light),
+          child: const MaterialApp(home: ChatPage(conversationId: 'c')),
+        ),
+      ),
+    );
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final title = tester.getRect(find.textContaining('用几条要点'));
+    var checked = 0;
+    for (final b in find.byType(AppIconButton).evaluate()) {
+      final r = tester.getRect(find.byWidget(b.widget));
+      if (r.top > 120) continue; // 只看顶栏里的按钮
+      checked++;
+      expect(title.overlaps(r), isFalse, reason: 'title=$title button=$r');
+    }
+    expect(checked, 3, reason: '返回、分享、设置三个按钮');
   });
 }

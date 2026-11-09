@@ -21,6 +21,11 @@ import 'package:agent/features/agents/agents_page.dart';
 import 'package:agent/features/channels/channel_edit_page.dart';
 import 'package:agent/features/channels/channels_page.dart';
 import 'package:agent/features/chat/chat_page.dart';
+import 'package:agent/features/chat/export.dart';
+import 'package:agent/features/search/search_page.dart';
+import 'package:agent/features/settings/prompts_page.dart';
+import 'package:agent/features/settings/usage_page.dart';
+import 'package:agent/ui/vendor/app_text_field.dart';
 import 'package:agent/features/chat/follow_up.dart';
 import 'package:agent/features/chat/participant_picker.dart';
 import 'package:agent/features/home/home_shell.dart';
@@ -42,6 +47,8 @@ late Directory tmp;
 late String chatConv;
 late String chainConv;
 late String multiConv;
+late String judgeConv;
+late String debateConv;
 late String channelId;
 late String modelId;
 late String agentId;
@@ -112,6 +119,7 @@ Future<void> _seed() async {
     List<ContentPart> parts, {
     String? group,
     int? step,
+    String? kind,
     bool adopted = true,
     String status = MsgStatus.done,
     String? model,
@@ -127,6 +135,7 @@ Future<void> _seed() async {
             partsJson: Value(ContentPart.encodeList(parts)),
             groupId: Value(group),
             stepIndex: Value(step),
+            kind: Value(kind),
             adopted: Value(adopted),
             modelId: Value(model),
             status: Value(status),
@@ -254,6 +263,81 @@ Future<void> _seed() async {
     status: MsgStatus.pending,
     t: 4,
   );
+
+  // 裁判：两个回答 + 裁判点评（被采纳）。
+  judgeConv = await conv(
+    [Participant(modelId: modelId), Participant(modelId: reasoner)],
+    ConversationMode.judge,
+    'judge',
+  );
+  await msg(judgeConv, 'ju', 'user', [
+    const FilePart('x.pdf', '报告.pdf', 'application/pdf', 2048),
+    const QuotePart('引用的一段话'),
+    const TextPart('哪个好'),
+  ], t: 1);
+  await msg(
+    judgeConv,
+    'j1',
+    'assistant',
+    [const TextPart('甲的回答')],
+    group: 'jg',
+    adopted: false,
+    model: modelId,
+    t: 2,
+  );
+  await msg(
+    judgeConv,
+    'j2',
+    'assistant',
+    [const TextPart('乙的回答')],
+    group: 'jg',
+    adopted: false,
+    model: reasoner,
+    t: 3,
+  );
+  await msg(
+    judgeConv,
+    'j3',
+    'assistant',
+    [const TextPart('裁判点评：甲 8 分')],
+    group: 'jg',
+    kind: MsgKind.judge,
+    model: modelId,
+    t: 4,
+  );
+
+  // 辩论：两轮 + 总结。
+  debateConv = await conv(
+    [Participant(modelId: modelId), Participant(modelId: reasoner)],
+    ConversationMode.debate,
+    'debate',
+  );
+  await msg(debateConv, 'du', 'user', [const TextPart('猫还是狗')], t: 1);
+  for (var i = 0; i < 4; i++) {
+    await msg(
+      debateConv,
+      'd$i',
+      'assistant',
+      [TextPart('发言$i')],
+      group: 'dg',
+      step: i,
+      kind: MsgKind.debate,
+      adopted: false,
+      model: i.isEven ? modelId : reasoner,
+      t: 2 + i,
+    );
+  }
+  await msg(
+    debateConv,
+    'd4',
+    'assistant',
+    [const TextPart('总结：都好')],
+    group: 'dg',
+    step: 4,
+    kind: MsgKind.summary,
+    model: modelId,
+    t: 7,
+  );
 }
 
 Future<String> _newEmpty() async {
@@ -361,7 +445,13 @@ void main() {
     });
 
     testWidgets('聊天页：单聊各种消息状态、多 Agent、接力 · $b', (tester) async {
-      for (final id in [chatConv, multiConv, chainConv]) {
+      for (final id in [
+        chatConv,
+        multiConv,
+        chainConv,
+        judgeConv,
+        debateConv,
+      ]) {
         await _open(tester, ChatPage(conversationId: id), b: b);
         await _open(
           tester,
@@ -386,7 +476,7 @@ void main() {
     expect(find.text('这次想怎么对话？'), findsOneWidget);
     expect(find.text('沿用上次'), findsNothing, reason: '没有上次的设置');
     await _tapText(tester, '接力分析');
-    expect(find.text('选择模型'), findsWidgets, reason: '进入了选择页');
+    expect(find.text('对话设置'), findsWidgets, reason: '进入了选择页');
     expect(find.text(ConversationMode.chain.description), findsOneWidget);
     await _close(tester);
     await tester.runAsync(
@@ -582,6 +672,143 @@ void main() {
     expect(CornerFab.gapFor(TargetPlatform.android, safe), 60);
     expect(CornerFab.gapFor(TargetPlatform.android, EdgeInsets.zero), 24);
     expect(CornerFab.gapFor(TargetPlatform.iOS, safe), 24);
+  });
+
+  testWidgets('裁判与辩论的显示', (tester) async {
+    await _open(tester, ChatPage(conversationId: judgeConv));
+    expect(find.text('裁判 · gpt-4o'), findsOneWidget);
+    expect(find.text('综合答案已采纳'), findsOneWidget);
+    expect(find.text('报告.pdf'), findsOneWidget, reason: '附件标签');
+    expect(find.text('引用的一段话'), findsOneWidget);
+    await _open(tester, ChatPage(conversationId: debateConv));
+    expect(
+      find.textContaining('辩论 · gpt-4o vs deepseek-reasoner'),
+      findsOneWidget,
+    );
+    expect(find.text('gpt-4o · 第 2 轮'), findsOneWidget);
+    expect(find.text('总结 · gpt-4o'), findsOneWidget);
+    await _close(tester);
+  });
+
+  testWidgets('对话设置：裁判 / 辩论选项和上下文设置', (tester) async {
+    await _open(
+      tester,
+      ParticipantPickerPage(
+        key: const ValueKey('d'),
+        conversationId: debateConv,
+      ),
+    );
+    expect(find.text('总结者'), findsOneWidget);
+    expect(find.text('辩论轮数'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('携带历史'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('过长时自动压缩'), findsOneWidget);
+    await _open(
+      tester,
+      ParticipantPickerPage(
+        key: const ValueKey('j'),
+        conversationId: judgeConv,
+      ),
+    );
+    expect(find.text('裁判'), findsOneWidget);
+    await _close(tester);
+  });
+
+  testWidgets('新页面：搜索、用量统计、提示词、导出图片', (tester) async {
+    await _open(tester, SearchPage(onOpen: (_) {}));
+    await tester.enterText(find.byType(EditableText), '甲');
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 300)),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await _settle(tester);
+    expect(find.text('judge'), findsWidgets, reason: '命中所在对话的标题');
+
+    await _open(tester, const UsagePage());
+    expect(find.text('近 30 天'), findsWidgets);
+    expect(find.text('请求'), findsOneWidget);
+    expect(find.text('余额（DeepSeek 官方、New API / One API 中转站）'), findsOneWidget);
+
+    await _open(tester, const PromptsPage());
+    expect(find.text('翻译成英文'), findsOneWidget, reason: '内置提示词');
+    await _open(tester, const PromptEditPage());
+
+    await _open(tester, ExportImagePage(conversationId: judgeConv));
+    expect(find.text('由 XC-Agent 生成'), findsOneWidget);
+    expect(find.text('裁判 · gpt-4o'), findsOneWidget);
+    await _close(tester);
+  });
+
+  testWidgets('输入 / 调出提示词，选中后填进输入框', (tester) async {
+    await _open(tester, ChatPage(conversationId: chatConv));
+    final input = find.descendant(
+      of: find.byType(AppTextField),
+      matching: find.byType(EditableText),
+    );
+    await tester.enterText(input, '/翻译');
+    await _settle(tester);
+    expect(find.text('翻译成英文'), findsOneWidget);
+    expect(find.text('总结要点'), findsNothing, reason: '按输入筛选');
+    await tester.tap(find.text('翻译成英文'));
+    await _settle(tester);
+    final field = tester.widget<EditableText>(input);
+    expect(field.controller.text, startsWith('把下面的内容翻译成地道的英文'));
+    expect(find.text('管理提示词…'), findsNothing, reason: '面板已收起');
+    await _close(tester);
+  });
+
+  testWidgets('搜索结果跳转：长对话里定位到较早的消息并高亮', (tester) async {
+    await tester.runAsync(() async {
+      final t = DateTime(2026, 1, 1);
+      for (var i = 0; i < 30; i++) {
+        await db
+            .into(db.messages)
+            .insert(
+              MessagesCompanion.insert(
+                id: 'long$i',
+                conversationId: chatConv,
+                role: i.isEven ? 'user' : 'assistant',
+                partsJson: Value(
+                  ContentPart.encodeList([TextPart('填充消息 $i\n' * 6)]),
+                ),
+                createdAt: t.add(Duration(minutes: 10 + i)),
+              ),
+            );
+      }
+    });
+    final pf = PendingFocus()..put(chatConv, 'u1');
+    await tester.runAsync(() async {});
+    final prefs = await tester.runAsync(SharedPreferences.getInstance);
+    tester.view.physicalSize = const Size(402, 874);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          prefsProvider.overrideWithValue(prefs!),
+          databaseProvider.overrideWithValue(db),
+          keyStoreProvider.overrideWithValue(keys),
+          imageStoreProvider.overrideWithValue(ImageStore(() async => tmp)),
+          pendingFocusProvider.overrideWithValue(pf),
+        ],
+        child: MiuixTheme(
+          data: MiuixThemeData.of(Brightness.light),
+          child: MaterialApp(home: ChatPage(conversationId: chatConv)),
+        ),
+      ),
+    );
+    await _settle(tester);
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    final target = find.text('你好');
+    expect(target, findsOneWidget, reason: '最早的那条消息已滚到可视区');
+    final y = tester.getCenter(target).dy;
+    expect(y > 60 && y < 800, isTrue, reason: 'y=$y');
+    await _close(tester);
   });
 
   testWidgets('模型选择：三种模式切换、接力排序', (tester) async {

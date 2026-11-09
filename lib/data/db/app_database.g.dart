@@ -654,6 +654,28 @@ class $ModelsTable extends Models with TableInfo<$ModelsTable, Model> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _inputPriceMeta = const VerificationMeta(
+    'inputPrice',
+  );
+  @override
+  late final GeneratedColumn<double> inputPrice = GeneratedColumn<double>(
+    'input_price',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _outputPriceMeta = const VerificationMeta(
+    'outputPrice',
+  );
+  @override
+  late final GeneratedColumn<double> outputPrice = GeneratedColumn<double>(
+    'output_price',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -663,6 +685,8 @@ class $ModelsTable extends Models with TableInfo<$ModelsTable, Model> {
     routeStrategy,
     enabled,
     sortOrder,
+    inputPrice,
+    outputPrice,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -728,6 +752,21 @@ class $ModelsTable extends Models with TableInfo<$ModelsTable, Model> {
         sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
       );
     }
+    if (data.containsKey('input_price')) {
+      context.handle(
+        _inputPriceMeta,
+        inputPrice.isAcceptableOrUnknown(data['input_price']!, _inputPriceMeta),
+      );
+    }
+    if (data.containsKey('output_price')) {
+      context.handle(
+        _outputPriceMeta,
+        outputPrice.isAcceptableOrUnknown(
+          data['output_price']!,
+          _outputPriceMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -765,6 +804,14 @@ class $ModelsTable extends Models with TableInfo<$ModelsTable, Model> {
         DriftSqlType.int,
         data['${effectivePrefix}sort_order'],
       )!,
+      inputPrice: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}input_price'],
+      ),
+      outputPrice: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}output_price'],
+      ),
     );
   }
 
@@ -789,6 +836,10 @@ class Model extends DataClass implements Insertable<Model> {
   final String routeStrategy;
   final bool enabled;
   final int sortOrder;
+
+  /// 单价：每百万 token 的输入 / 输出价格（货币见设置），用于用量统计。（v5）
+  final double? inputPrice;
+  final double? outputPrice;
   const Model({
     required this.id,
     required this.displayName,
@@ -797,6 +848,8 @@ class Model extends DataClass implements Insertable<Model> {
     required this.routeStrategy,
     required this.enabled,
     required this.sortOrder,
+    this.inputPrice,
+    this.outputPrice,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -808,6 +861,12 @@ class Model extends DataClass implements Insertable<Model> {
     map['route_strategy'] = Variable<String>(routeStrategy);
     map['enabled'] = Variable<bool>(enabled);
     map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || inputPrice != null) {
+      map['input_price'] = Variable<double>(inputPrice);
+    }
+    if (!nullToAbsent || outputPrice != null) {
+      map['output_price'] = Variable<double>(outputPrice);
+    }
     return map;
   }
 
@@ -820,6 +879,12 @@ class Model extends DataClass implements Insertable<Model> {
       routeStrategy: Value(routeStrategy),
       enabled: Value(enabled),
       sortOrder: Value(sortOrder),
+      inputPrice: inputPrice == null && nullToAbsent
+          ? const Value.absent()
+          : Value(inputPrice),
+      outputPrice: outputPrice == null && nullToAbsent
+          ? const Value.absent()
+          : Value(outputPrice),
     );
   }
 
@@ -836,6 +901,8 @@ class Model extends DataClass implements Insertable<Model> {
       routeStrategy: serializer.fromJson<String>(json['routeStrategy']),
       enabled: serializer.fromJson<bool>(json['enabled']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      inputPrice: serializer.fromJson<double?>(json['inputPrice']),
+      outputPrice: serializer.fromJson<double?>(json['outputPrice']),
     );
   }
   @override
@@ -849,6 +916,8 @@ class Model extends DataClass implements Insertable<Model> {
       'routeStrategy': serializer.toJson<String>(routeStrategy),
       'enabled': serializer.toJson<bool>(enabled),
       'sortOrder': serializer.toJson<int>(sortOrder),
+      'inputPrice': serializer.toJson<double?>(inputPrice),
+      'outputPrice': serializer.toJson<double?>(outputPrice),
     };
   }
 
@@ -860,6 +929,8 @@ class Model extends DataClass implements Insertable<Model> {
     String? routeStrategy,
     bool? enabled,
     int? sortOrder,
+    Value<double?> inputPrice = const Value.absent(),
+    Value<double?> outputPrice = const Value.absent(),
   }) => Model(
     id: id ?? this.id,
     displayName: displayName ?? this.displayName,
@@ -868,6 +939,8 @@ class Model extends DataClass implements Insertable<Model> {
     routeStrategy: routeStrategy ?? this.routeStrategy,
     enabled: enabled ?? this.enabled,
     sortOrder: sortOrder ?? this.sortOrder,
+    inputPrice: inputPrice.present ? inputPrice.value : this.inputPrice,
+    outputPrice: outputPrice.present ? outputPrice.value : this.outputPrice,
   );
   Model copyWithCompanion(ModelsCompanion data) {
     return Model(
@@ -884,6 +957,12 @@ class Model extends DataClass implements Insertable<Model> {
           : this.routeStrategy,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      inputPrice: data.inputPrice.present
+          ? data.inputPrice.value
+          : this.inputPrice,
+      outputPrice: data.outputPrice.present
+          ? data.outputPrice.value
+          : this.outputPrice,
     );
   }
 
@@ -896,7 +975,9 @@ class Model extends DataClass implements Insertable<Model> {
           ..write('capabilitiesJson: $capabilitiesJson, ')
           ..write('routeStrategy: $routeStrategy, ')
           ..write('enabled: $enabled, ')
-          ..write('sortOrder: $sortOrder')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('inputPrice: $inputPrice, ')
+          ..write('outputPrice: $outputPrice')
           ..write(')'))
         .toString();
   }
@@ -910,6 +991,8 @@ class Model extends DataClass implements Insertable<Model> {
     routeStrategy,
     enabled,
     sortOrder,
+    inputPrice,
+    outputPrice,
   );
   @override
   bool operator ==(Object other) =>
@@ -921,7 +1004,9 @@ class Model extends DataClass implements Insertable<Model> {
           other.capabilitiesJson == this.capabilitiesJson &&
           other.routeStrategy == this.routeStrategy &&
           other.enabled == this.enabled &&
-          other.sortOrder == this.sortOrder);
+          other.sortOrder == this.sortOrder &&
+          other.inputPrice == this.inputPrice &&
+          other.outputPrice == this.outputPrice);
 }
 
 class ModelsCompanion extends UpdateCompanion<Model> {
@@ -932,6 +1017,8 @@ class ModelsCompanion extends UpdateCompanion<Model> {
   final Value<String> routeStrategy;
   final Value<bool> enabled;
   final Value<int> sortOrder;
+  final Value<double?> inputPrice;
+  final Value<double?> outputPrice;
   final Value<int> rowid;
   const ModelsCompanion({
     this.id = const Value.absent(),
@@ -941,6 +1028,8 @@ class ModelsCompanion extends UpdateCompanion<Model> {
     this.routeStrategy = const Value.absent(),
     this.enabled = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.inputPrice = const Value.absent(),
+    this.outputPrice = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ModelsCompanion.insert({
@@ -951,6 +1040,8 @@ class ModelsCompanion extends UpdateCompanion<Model> {
     this.routeStrategy = const Value.absent(),
     this.enabled = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.inputPrice = const Value.absent(),
+    this.outputPrice = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        displayName = Value(displayName);
@@ -962,6 +1053,8 @@ class ModelsCompanion extends UpdateCompanion<Model> {
     Expression<String>? routeStrategy,
     Expression<bool>? enabled,
     Expression<int>? sortOrder,
+    Expression<double>? inputPrice,
+    Expression<double>? outputPrice,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -972,6 +1065,8 @@ class ModelsCompanion extends UpdateCompanion<Model> {
       if (routeStrategy != null) 'route_strategy': routeStrategy,
       if (enabled != null) 'enabled': enabled,
       if (sortOrder != null) 'sort_order': sortOrder,
+      if (inputPrice != null) 'input_price': inputPrice,
+      if (outputPrice != null) 'output_price': outputPrice,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -984,6 +1079,8 @@ class ModelsCompanion extends UpdateCompanion<Model> {
     Value<String>? routeStrategy,
     Value<bool>? enabled,
     Value<int>? sortOrder,
+    Value<double?>? inputPrice,
+    Value<double?>? outputPrice,
     Value<int>? rowid,
   }) {
     return ModelsCompanion(
@@ -994,6 +1091,8 @@ class ModelsCompanion extends UpdateCompanion<Model> {
       routeStrategy: routeStrategy ?? this.routeStrategy,
       enabled: enabled ?? this.enabled,
       sortOrder: sortOrder ?? this.sortOrder,
+      inputPrice: inputPrice ?? this.inputPrice,
+      outputPrice: outputPrice ?? this.outputPrice,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1022,6 +1121,12 @@ class ModelsCompanion extends UpdateCompanion<Model> {
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
+    if (inputPrice.present) {
+      map['input_price'] = Variable<double>(inputPrice.value);
+    }
+    if (outputPrice.present) {
+      map['output_price'] = Variable<double>(outputPrice.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1038,6 +1143,8 @@ class ModelsCompanion extends UpdateCompanion<Model> {
           ..write('routeStrategy: $routeStrategy, ')
           ..write('enabled: $enabled, ')
           ..write('sortOrder: $sortOrder, ')
+          ..write('inputPrice: $inputPrice, ')
+          ..write('outputPrice: $outputPrice, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2053,6 +2160,18 @@ class $ConversationsTable extends Conversations
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _optionsJsonMeta = const VerificationMeta(
+    'optionsJson',
+  );
+  @override
+  late final GeneratedColumn<String> optionsJson = GeneratedColumn<String>(
+    'options_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
   static const VerificationMeta _pinnedMeta = const VerificationMeta('pinned');
   @override
   late final GeneratedColumn<bool> pinned = GeneratedColumn<bool>(
@@ -2096,6 +2215,7 @@ class $ConversationsTable extends Conversations
     agentIdsJson,
     participantsJson,
     webSearch,
+    optionsJson,
     pinned,
     createdAt,
     updatedAt,
@@ -2155,6 +2275,15 @@ class $ConversationsTable extends Conversations
         webSearch.isAcceptableOrUnknown(data['web_search']!, _webSearchMeta),
       );
     }
+    if (data.containsKey('options_json')) {
+      context.handle(
+        _optionsJsonMeta,
+        optionsJson.isAcceptableOrUnknown(
+          data['options_json']!,
+          _optionsJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('pinned')) {
       context.handle(
         _pinnedMeta,
@@ -2210,6 +2339,10 @@ class $ConversationsTable extends Conversations
         DriftSqlType.bool,
         data['${effectivePrefix}web_search'],
       )!,
+      optionsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}options_json'],
+      )!,
       pinned: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}pinned'],
@@ -2246,6 +2379,10 @@ class Conversation extends DataClass implements Insertable<Conversation> {
 
   /// 本会话是否开启联网搜索。（v3）
   final bool webSearch;
+
+  /// 会话选项 JSON（v5）：裁判 / 总结者、辩论轮数、上下文条数、自动压缩、
+  /// 压缩后的早期对话摘要等，见 ConversationOptions。
+  final String optionsJson;
   final bool pinned;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -2256,6 +2393,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     required this.agentIdsJson,
     required this.participantsJson,
     required this.webSearch,
+    required this.optionsJson,
     required this.pinned,
     required this.createdAt,
     required this.updatedAt,
@@ -2269,6 +2407,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     map['agent_ids_json'] = Variable<String>(agentIdsJson);
     map['participants_json'] = Variable<String>(participantsJson);
     map['web_search'] = Variable<bool>(webSearch);
+    map['options_json'] = Variable<String>(optionsJson);
     map['pinned'] = Variable<bool>(pinned);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -2283,6 +2422,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       agentIdsJson: Value(agentIdsJson),
       participantsJson: Value(participantsJson),
       webSearch: Value(webSearch),
+      optionsJson: Value(optionsJson),
       pinned: Value(pinned),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -2301,6 +2441,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       agentIdsJson: serializer.fromJson<String>(json['agentIdsJson']),
       participantsJson: serializer.fromJson<String>(json['participantsJson']),
       webSearch: serializer.fromJson<bool>(json['webSearch']),
+      optionsJson: serializer.fromJson<String>(json['optionsJson']),
       pinned: serializer.fromJson<bool>(json['pinned']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -2316,6 +2457,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       'agentIdsJson': serializer.toJson<String>(agentIdsJson),
       'participantsJson': serializer.toJson<String>(participantsJson),
       'webSearch': serializer.toJson<bool>(webSearch),
+      'optionsJson': serializer.toJson<String>(optionsJson),
       'pinned': serializer.toJson<bool>(pinned),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -2329,6 +2471,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     String? agentIdsJson,
     String? participantsJson,
     bool? webSearch,
+    String? optionsJson,
     bool? pinned,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -2339,6 +2482,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     agentIdsJson: agentIdsJson ?? this.agentIdsJson,
     participantsJson: participantsJson ?? this.participantsJson,
     webSearch: webSearch ?? this.webSearch,
+    optionsJson: optionsJson ?? this.optionsJson,
     pinned: pinned ?? this.pinned,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -2355,6 +2499,9 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           ? data.participantsJson.value
           : this.participantsJson,
       webSearch: data.webSearch.present ? data.webSearch.value : this.webSearch,
+      optionsJson: data.optionsJson.present
+          ? data.optionsJson.value
+          : this.optionsJson,
       pinned: data.pinned.present ? data.pinned.value : this.pinned,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -2370,6 +2517,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           ..write('agentIdsJson: $agentIdsJson, ')
           ..write('participantsJson: $participantsJson, ')
           ..write('webSearch: $webSearch, ')
+          ..write('optionsJson: $optionsJson, ')
           ..write('pinned: $pinned, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -2385,6 +2533,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     agentIdsJson,
     participantsJson,
     webSearch,
+    optionsJson,
     pinned,
     createdAt,
     updatedAt,
@@ -2399,6 +2548,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           other.agentIdsJson == this.agentIdsJson &&
           other.participantsJson == this.participantsJson &&
           other.webSearch == this.webSearch &&
+          other.optionsJson == this.optionsJson &&
           other.pinned == this.pinned &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -2411,6 +2561,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
   final Value<String> agentIdsJson;
   final Value<String> participantsJson;
   final Value<bool> webSearch;
+  final Value<String> optionsJson;
   final Value<bool> pinned;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -2422,6 +2573,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     this.agentIdsJson = const Value.absent(),
     this.participantsJson = const Value.absent(),
     this.webSearch = const Value.absent(),
+    this.optionsJson = const Value.absent(),
     this.pinned = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -2434,6 +2586,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     this.agentIdsJson = const Value.absent(),
     this.participantsJson = const Value.absent(),
     this.webSearch = const Value.absent(),
+    this.optionsJson = const Value.absent(),
     this.pinned = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -2449,6 +2602,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     Expression<String>? agentIdsJson,
     Expression<String>? participantsJson,
     Expression<bool>? webSearch,
+    Expression<String>? optionsJson,
     Expression<bool>? pinned,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -2461,6 +2615,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       if (agentIdsJson != null) 'agent_ids_json': agentIdsJson,
       if (participantsJson != null) 'participants_json': participantsJson,
       if (webSearch != null) 'web_search': webSearch,
+      if (optionsJson != null) 'options_json': optionsJson,
       if (pinned != null) 'pinned': pinned,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -2475,6 +2630,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     Value<String>? agentIdsJson,
     Value<String>? participantsJson,
     Value<bool>? webSearch,
+    Value<String>? optionsJson,
     Value<bool>? pinned,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -2487,6 +2643,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       agentIdsJson: agentIdsJson ?? this.agentIdsJson,
       participantsJson: participantsJson ?? this.participantsJson,
       webSearch: webSearch ?? this.webSearch,
+      optionsJson: optionsJson ?? this.optionsJson,
       pinned: pinned ?? this.pinned,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -2515,6 +2672,9 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     if (webSearch.present) {
       map['web_search'] = Variable<bool>(webSearch.value);
     }
+    if (optionsJson.present) {
+      map['options_json'] = Variable<String>(optionsJson.value);
+    }
     if (pinned.present) {
       map['pinned'] = Variable<bool>(pinned.value);
     }
@@ -2539,6 +2699,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
           ..write('agentIdsJson: $agentIdsJson, ')
           ..write('participantsJson: $participantsJson, ')
           ..write('webSearch: $webSearch, ')
+          ..write('optionsJson: $optionsJson, ')
           ..write('pinned: $pinned, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -2628,6 +2789,15 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     aliasedName,
     true,
     type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
   static const VerificationMeta _adoptedMeta = const VerificationMeta(
@@ -2739,6 +2909,7 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     partsJson,
     groupId,
     stepIndex,
+    kind,
     adopted,
     agentId,
     modelId,
@@ -2807,6 +2978,12 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
       context.handle(
         _stepIndexMeta,
         stepIndex.isAcceptableOrUnknown(data['step_index']!, _stepIndexMeta),
+      );
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
       );
     }
     if (data.containsKey('adopted')) {
@@ -2905,6 +3082,10 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
         DriftSqlType.int,
         data['${effectivePrefix}step_index'],
       ),
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      ),
       adopted: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}adopted'],
@@ -2969,6 +3150,9 @@ class Message extends DataClass implements Insertable<Message> {
   /// 接力分析模式下的步骤序号（0 起）；其他模式为 null。（schema v4）
   final int? stepIndex;
 
+  /// 特殊消息类型（v5）：judge = 裁判点评；debate = 辩论发言；summary = 辩论总结。
+  final String? kind;
+
   /// 多 Agent 模式下是否为被采纳的回答（进入共同上下文）。
   final bool adopted;
   final String? agentId;
@@ -2993,6 +3177,7 @@ class Message extends DataClass implements Insertable<Message> {
     required this.partsJson,
     this.groupId,
     this.stepIndex,
+    this.kind,
     required this.adopted,
     this.agentId,
     this.modelId,
@@ -3018,6 +3203,9 @@ class Message extends DataClass implements Insertable<Message> {
     }
     if (!nullToAbsent || stepIndex != null) {
       map['step_index'] = Variable<int>(stepIndex);
+    }
+    if (!nullToAbsent || kind != null) {
+      map['kind'] = Variable<String>(kind);
     }
     map['adopted'] = Variable<bool>(adopted);
     if (!nullToAbsent || agentId != null) {
@@ -3058,6 +3246,7 @@ class Message extends DataClass implements Insertable<Message> {
       stepIndex: stepIndex == null && nullToAbsent
           ? const Value.absent()
           : Value(stepIndex),
+      kind: kind == null && nullToAbsent ? const Value.absent() : Value(kind),
       adopted: Value(adopted),
       agentId: agentId == null && nullToAbsent
           ? const Value.absent()
@@ -3095,6 +3284,7 @@ class Message extends DataClass implements Insertable<Message> {
       partsJson: serializer.fromJson<String>(json['partsJson']),
       groupId: serializer.fromJson<String?>(json['groupId']),
       stepIndex: serializer.fromJson<int?>(json['stepIndex']),
+      kind: serializer.fromJson<String?>(json['kind']),
       adopted: serializer.fromJson<bool>(json['adopted']),
       agentId: serializer.fromJson<String?>(json['agentId']),
       modelId: serializer.fromJson<String?>(json['modelId']),
@@ -3117,6 +3307,7 @@ class Message extends DataClass implements Insertable<Message> {
       'partsJson': serializer.toJson<String>(partsJson),
       'groupId': serializer.toJson<String?>(groupId),
       'stepIndex': serializer.toJson<int?>(stepIndex),
+      'kind': serializer.toJson<String?>(kind),
       'adopted': serializer.toJson<bool>(adopted),
       'agentId': serializer.toJson<String?>(agentId),
       'modelId': serializer.toJson<String?>(modelId),
@@ -3137,6 +3328,7 @@ class Message extends DataClass implements Insertable<Message> {
     String? partsJson,
     Value<String?> groupId = const Value.absent(),
     Value<int?> stepIndex = const Value.absent(),
+    Value<String?> kind = const Value.absent(),
     bool? adopted,
     Value<String?> agentId = const Value.absent(),
     Value<String?> modelId = const Value.absent(),
@@ -3154,6 +3346,7 @@ class Message extends DataClass implements Insertable<Message> {
     partsJson: partsJson ?? this.partsJson,
     groupId: groupId.present ? groupId.value : this.groupId,
     stepIndex: stepIndex.present ? stepIndex.value : this.stepIndex,
+    kind: kind.present ? kind.value : this.kind,
     adopted: adopted ?? this.adopted,
     agentId: agentId.present ? agentId.value : this.agentId,
     modelId: modelId.present ? modelId.value : this.modelId,
@@ -3177,6 +3370,7 @@ class Message extends DataClass implements Insertable<Message> {
       partsJson: data.partsJson.present ? data.partsJson.value : this.partsJson,
       groupId: data.groupId.present ? data.groupId.value : this.groupId,
       stepIndex: data.stepIndex.present ? data.stepIndex.value : this.stepIndex,
+      kind: data.kind.present ? data.kind.value : this.kind,
       adopted: data.adopted.present ? data.adopted.value : this.adopted,
       agentId: data.agentId.present ? data.agentId.value : this.agentId,
       modelId: data.modelId.present ? data.modelId.value : this.modelId,
@@ -3201,6 +3395,7 @@ class Message extends DataClass implements Insertable<Message> {
           ..write('partsJson: $partsJson, ')
           ..write('groupId: $groupId, ')
           ..write('stepIndex: $stepIndex, ')
+          ..write('kind: $kind, ')
           ..write('adopted: $adopted, ')
           ..write('agentId: $agentId, ')
           ..write('modelId: $modelId, ')
@@ -3223,6 +3418,7 @@ class Message extends DataClass implements Insertable<Message> {
     partsJson,
     groupId,
     stepIndex,
+    kind,
     adopted,
     agentId,
     modelId,
@@ -3244,6 +3440,7 @@ class Message extends DataClass implements Insertable<Message> {
           other.partsJson == this.partsJson &&
           other.groupId == this.groupId &&
           other.stepIndex == this.stepIndex &&
+          other.kind == this.kind &&
           other.adopted == this.adopted &&
           other.agentId == this.agentId &&
           other.modelId == this.modelId &&
@@ -3263,6 +3460,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
   final Value<String> partsJson;
   final Value<String?> groupId;
   final Value<int?> stepIndex;
+  final Value<String?> kind;
   final Value<bool> adopted;
   final Value<String?> agentId;
   final Value<String?> modelId;
@@ -3281,6 +3479,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     this.partsJson = const Value.absent(),
     this.groupId = const Value.absent(),
     this.stepIndex = const Value.absent(),
+    this.kind = const Value.absent(),
     this.adopted = const Value.absent(),
     this.agentId = const Value.absent(),
     this.modelId = const Value.absent(),
@@ -3300,6 +3499,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     this.partsJson = const Value.absent(),
     this.groupId = const Value.absent(),
     this.stepIndex = const Value.absent(),
+    this.kind = const Value.absent(),
     this.adopted = const Value.absent(),
     this.agentId = const Value.absent(),
     this.modelId = const Value.absent(),
@@ -3322,6 +3522,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     Expression<String>? partsJson,
     Expression<String>? groupId,
     Expression<int>? stepIndex,
+    Expression<String>? kind,
     Expression<bool>? adopted,
     Expression<String>? agentId,
     Expression<String>? modelId,
@@ -3341,6 +3542,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       if (partsJson != null) 'parts_json': partsJson,
       if (groupId != null) 'group_id': groupId,
       if (stepIndex != null) 'step_index': stepIndex,
+      if (kind != null) 'kind': kind,
       if (adopted != null) 'adopted': adopted,
       if (agentId != null) 'agent_id': agentId,
       if (modelId != null) 'model_id': modelId,
@@ -3362,6 +3564,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     Value<String>? partsJson,
     Value<String?>? groupId,
     Value<int?>? stepIndex,
+    Value<String?>? kind,
     Value<bool>? adopted,
     Value<String?>? agentId,
     Value<String?>? modelId,
@@ -3381,6 +3584,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       partsJson: partsJson ?? this.partsJson,
       groupId: groupId ?? this.groupId,
       stepIndex: stepIndex ?? this.stepIndex,
+      kind: kind ?? this.kind,
       adopted: adopted ?? this.adopted,
       agentId: agentId ?? this.agentId,
       modelId: modelId ?? this.modelId,
@@ -3417,6 +3621,9 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     }
     if (stepIndex.present) {
       map['step_index'] = Variable<int>(stepIndex.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
     }
     if (adopted.present) {
       map['adopted'] = Variable<bool>(adopted.value);
@@ -3461,6 +3668,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
           ..write('partsJson: $partsJson, ')
           ..write('groupId: $groupId, ')
           ..write('stepIndex: $stepIndex, ')
+          ..write('kind: $kind, ')
           ..write('adopted: $adopted, ')
           ..write('agentId: $agentId, ')
           ..write('modelId: $modelId, ')
@@ -3476,6 +3684,311 @@ class MessagesCompanion extends UpdateCompanion<Message> {
   }
 }
 
+class $PromptsTable extends Prompts with TableInfo<$PromptsTable, Prompt> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PromptsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, title, content, sortOrder];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'prompts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Prompt> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Prompt map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Prompt(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $PromptsTable createAlias(String alias) {
+    return $PromptsTable(attachedDatabase, alias);
+  }
+}
+
+class Prompt extends DataClass implements Insertable<Prompt> {
+  final String id;
+  final String title;
+  final String content;
+  final int sortOrder;
+  const Prompt({
+    required this.id,
+    required this.title,
+    required this.content,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['title'] = Variable<String>(title);
+    map['content'] = Variable<String>(content);
+    map['sort_order'] = Variable<int>(sortOrder);
+    return map;
+  }
+
+  PromptsCompanion toCompanion(bool nullToAbsent) {
+    return PromptsCompanion(
+      id: Value(id),
+      title: Value(title),
+      content: Value(content),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory Prompt.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Prompt(
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      content: serializer.fromJson<String>(json['content']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String>(title),
+      'content': serializer.toJson<String>(content),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+    };
+  }
+
+  Prompt copyWith({
+    String? id,
+    String? title,
+    String? content,
+    int? sortOrder,
+  }) => Prompt(
+    id: id ?? this.id,
+    title: title ?? this.title,
+    content: content ?? this.content,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
+  Prompt copyWithCompanion(PromptsCompanion data) {
+    return Prompt(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      content: data.content.present ? data.content.value : this.content,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Prompt(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('content: $content, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, title, content, sortOrder);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Prompt &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.content == this.content &&
+          other.sortOrder == this.sortOrder);
+}
+
+class PromptsCompanion extends UpdateCompanion<Prompt> {
+  final Value<String> id;
+  final Value<String> title;
+  final Value<String> content;
+  final Value<int> sortOrder;
+  final Value<int> rowid;
+  const PromptsCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.content = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PromptsCompanion.insert({
+    required String id,
+    required String title,
+    required String content,
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       title = Value(title),
+       content = Value(content);
+  static Insertable<Prompt> custom({
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<String>? content,
+    Expression<int>? sortOrder,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (content != null) 'content': content,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PromptsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? title,
+    Value<String>? content,
+    Value<int>? sortOrder,
+    Value<int>? rowid,
+  }) {
+    return PromptsCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      sortOrder: sortOrder ?? this.sortOrder,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PromptsCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('content: $content, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3485,6 +3998,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $AgentsTable agents = $AgentsTable(this);
   late final $ConversationsTable conversations = $ConversationsTable(this);
   late final $MessagesTable messages = $MessagesTable(this);
+  late final $PromptsTable prompts = $PromptsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3496,6 +4010,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     agents,
     conversations,
     messages,
+    prompts,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -3908,6 +4423,8 @@ typedef $$ModelsTableCreateCompanionBuilder = ModelsCompanion Function({
   Value<String> routeStrategy,
   Value<bool> enabled,
   Value<int> sortOrder,
+  Value<double?> inputPrice,
+  Value<double?> outputPrice,
   Value<int> rowid,
 });
 typedef $$ModelsTableUpdateCompanionBuilder = ModelsCompanion Function({
@@ -3918,6 +4435,8 @@ typedef $$ModelsTableUpdateCompanionBuilder = ModelsCompanion Function({
   Value<String> routeStrategy,
   Value<bool> enabled,
   Value<int> sortOrder,
+  Value<double?> inputPrice,
+  Value<double?> outputPrice,
   Value<int> rowid,
 });
 
@@ -3985,6 +4504,16 @@ class $$ModelsTableFilterComposer
 
   ColumnFilters<int> get sortOrder => $composableBuilder(
     column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get inputPrice => $composableBuilder(
+    column: $table.inputPrice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get outputPrice => $composableBuilder(
+    column: $table.outputPrice,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4057,6 +4586,16 @@ class $$ModelsTableOrderingComposer
     column: $table.sortOrder,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<double> get inputPrice => $composableBuilder(
+    column: $table.inputPrice,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get outputPrice => $composableBuilder(
+    column: $table.outputPrice,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ModelsTableAnnotationComposer
@@ -4094,6 +4633,16 @@ class $$ModelsTableAnnotationComposer
 
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<double> get inputPrice => $composableBuilder(
+    column: $table.inputPrice,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get outputPrice => $composableBuilder(
+    column: $table.outputPrice,
+    builder: (column) => column,
+  );
 
   Expression<T> modelRoutesRefs<T extends Object>(
     Expression<T> Function($$ModelRoutesTableAnnotationComposer a) f,
@@ -4156,6 +4705,8 @@ class $$ModelsTableTableManager
                 Value<String> routeStrategy = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<double?> inputPrice = const Value.absent(),
+                Value<double?> outputPrice = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ModelsCompanion(
                 id: id,
@@ -4165,6 +4716,8 @@ class $$ModelsTableTableManager
                 routeStrategy: routeStrategy,
                 enabled: enabled,
                 sortOrder: sortOrder,
+                inputPrice: inputPrice,
+                outputPrice: outputPrice,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4176,6 +4729,8 @@ class $$ModelsTableTableManager
                 Value<String> routeStrategy = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<double?> inputPrice = const Value.absent(),
+                Value<double?> outputPrice = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ModelsCompanion.insert(
                 id: id,
@@ -4185,6 +4740,8 @@ class $$ModelsTableTableManager
                 routeStrategy: routeStrategy,
                 enabled: enabled,
                 sortOrder: sortOrder,
+                inputPrice: inputPrice,
+                outputPrice: outputPrice,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -4933,6 +5490,7 @@ typedef $$ConversationsTableCreateCompanionBuilder =
       Value<String> agentIdsJson,
       Value<String> participantsJson,
       Value<bool> webSearch,
+      Value<String> optionsJson,
       Value<bool> pinned,
       required DateTime createdAt,
       required DateTime updatedAt,
@@ -4946,6 +5504,7 @@ typedef $$ConversationsTableUpdateCompanionBuilder =
       Value<String> agentIdsJson,
       Value<String> participantsJson,
       Value<bool> webSearch,
+      Value<String> optionsJson,
       Value<bool> pinned,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -5016,6 +5575,11 @@ class $$ConversationsTableFilterComposer
 
   ColumnFilters<bool> get webSearch => $composableBuilder(
     column: $table.webSearch,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get optionsJson => $composableBuilder(
+    column: $table.optionsJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5099,6 +5663,11 @@ class $$ConversationsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get optionsJson => $composableBuilder(
+    column: $table.optionsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get pinned => $composableBuilder(
     column: $table.pinned,
     builder: (column) => ColumnOrderings(column),
@@ -5145,6 +5714,11 @@ class $$ConversationsTableAnnotationComposer
 
   GeneratedColumn<bool> get webSearch =>
       $composableBuilder(column: $table.webSearch, builder: (column) => column);
+
+  GeneratedColumn<String> get optionsJson => $composableBuilder(
+    column: $table.optionsJson,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get pinned =>
       $composableBuilder(column: $table.pinned, builder: (column) => column);
@@ -5215,6 +5789,7 @@ class $$ConversationsTableTableManager
                 Value<String> agentIdsJson = const Value.absent(),
                 Value<String> participantsJson = const Value.absent(),
                 Value<bool> webSearch = const Value.absent(),
+                Value<String> optionsJson = const Value.absent(),
                 Value<bool> pinned = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -5226,6 +5801,7 @@ class $$ConversationsTableTableManager
                 agentIdsJson: agentIdsJson,
                 participantsJson: participantsJson,
                 webSearch: webSearch,
+                optionsJson: optionsJson,
                 pinned: pinned,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -5239,6 +5815,7 @@ class $$ConversationsTableTableManager
                 Value<String> agentIdsJson = const Value.absent(),
                 Value<String> participantsJson = const Value.absent(),
                 Value<bool> webSearch = const Value.absent(),
+                Value<String> optionsJson = const Value.absent(),
                 Value<bool> pinned = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
@@ -5250,6 +5827,7 @@ class $$ConversationsTableTableManager
                 agentIdsJson: agentIdsJson,
                 participantsJson: participantsJson,
                 webSearch: webSearch,
+                optionsJson: optionsJson,
                 pinned: pinned,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -5320,6 +5898,7 @@ typedef $$MessagesTableCreateCompanionBuilder = MessagesCompanion Function({
   Value<String> partsJson,
   Value<String?> groupId,
   Value<int?> stepIndex,
+  Value<String?> kind,
   Value<bool> adopted,
   Value<String?> agentId,
   Value<String?> modelId,
@@ -5339,6 +5918,7 @@ typedef $$MessagesTableUpdateCompanionBuilder = MessagesCompanion Function({
   Value<String> partsJson,
   Value<String?> groupId,
   Value<int?> stepIndex,
+  Value<String?> kind,
   Value<bool> adopted,
   Value<String?> agentId,
   Value<String?> modelId,
@@ -5410,6 +5990,11 @@ class $$MessagesTableFilterComposer
 
   ColumnFilters<int> get stepIndex => $composableBuilder(
     column: $table.stepIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5521,6 +6106,11 @@ class $$MessagesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get adopted => $composableBuilder(
     column: $table.adopted,
     builder: (column) => ColumnOrderings(column),
@@ -5617,6 +6207,9 @@ class $$MessagesTableAnnotationComposer
   GeneratedColumn<int> get stepIndex =>
       $composableBuilder(column: $table.stepIndex, builder: (column) => column);
 
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
   GeneratedColumn<bool> get adopted =>
       $composableBuilder(column: $table.adopted, builder: (column) => column);
 
@@ -5705,6 +6298,7 @@ class $$MessagesTableTableManager
                 Value<String> partsJson = const Value.absent(),
                 Value<String?> groupId = const Value.absent(),
                 Value<int?> stepIndex = const Value.absent(),
+                Value<String?> kind = const Value.absent(),
                 Value<bool> adopted = const Value.absent(),
                 Value<String?> agentId = const Value.absent(),
                 Value<String?> modelId = const Value.absent(),
@@ -5723,6 +6317,7 @@ class $$MessagesTableTableManager
                 partsJson: partsJson,
                 groupId: groupId,
                 stepIndex: stepIndex,
+                kind: kind,
                 adopted: adopted,
                 agentId: agentId,
                 modelId: modelId,
@@ -5743,6 +6338,7 @@ class $$MessagesTableTableManager
                 Value<String> partsJson = const Value.absent(),
                 Value<String?> groupId = const Value.absent(),
                 Value<int?> stepIndex = const Value.absent(),
+                Value<String?> kind = const Value.absent(),
                 Value<bool> adopted = const Value.absent(),
                 Value<String?> agentId = const Value.absent(),
                 Value<String?> modelId = const Value.absent(),
@@ -5761,6 +6357,7 @@ class $$MessagesTableTableManager
                 partsJson: partsJson,
                 groupId: groupId,
                 stepIndex: stepIndex,
+                kind: kind,
                 adopted: adopted,
                 agentId: agentId,
                 modelId: modelId,
@@ -5837,6 +6434,188 @@ typedef $$MessagesTableProcessedTableManager =
       Message,
       PrefetchHooks Function({bool conversationId})
     >;
+typedef $$PromptsTableCreateCompanionBuilder = PromptsCompanion Function({
+  required String id,
+  required String title,
+  required String content,
+  Value<int> sortOrder,
+  Value<int> rowid,
+});
+typedef $$PromptsTableUpdateCompanionBuilder = PromptsCompanion Function({
+  Value<String> id,
+  Value<String> title,
+  Value<String> content,
+  Value<int> sortOrder,
+  Value<int> rowid,
+});
+
+class $$PromptsTableFilterComposer
+    extends Composer<_$AppDatabase, $PromptsTable> {
+  $$PromptsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PromptsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PromptsTable> {
+  $$PromptsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PromptsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PromptsTable> {
+  $$PromptsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+}
+
+class $$PromptsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PromptsTable,
+          Prompt,
+          $$PromptsTableFilterComposer,
+          $$PromptsTableOrderingComposer,
+          $$PromptsTableAnnotationComposer,
+          $$PromptsTableCreateCompanionBuilder,
+          $$PromptsTableUpdateCompanionBuilder,
+          (Prompt, BaseReferences<_$AppDatabase, $PromptsTable, Prompt>),
+          Prompt,
+          PrefetchHooks Function()
+        > {
+  $$PromptsTableTableManager(_$AppDatabase db, $PromptsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PromptsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PromptsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PromptsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PromptsCompanion(
+                id: id,
+                title: title,
+                content: content,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String title,
+                required String content,
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PromptsCompanion.insert(
+                id: id,
+                title: title,
+                content: content,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PromptsTable, Prompt>(table),
+                  BaseReferences<_$AppDatabase, $PromptsTable, Prompt>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PromptsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PromptsTable,
+      Prompt,
+      $$PromptsTableFilterComposer,
+      $$PromptsTableOrderingComposer,
+      $$PromptsTableAnnotationComposer,
+      $$PromptsTableCreateCompanionBuilder,
+      $$PromptsTableUpdateCompanionBuilder,
+      (Prompt, BaseReferences<_$AppDatabase, $PromptsTable, Prompt>),
+      Prompt,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5853,4 +6632,6 @@ class $AppDatabaseManager {
       $$ConversationsTableTableManager(_db, _db.conversations);
   $$MessagesTableTableManager get messages =>
       $$MessagesTableTableManager(_db, _db.messages);
+  $$PromptsTableTableManager get prompts =>
+      $$PromptsTableTableManager(_db, _db.prompts);
 }

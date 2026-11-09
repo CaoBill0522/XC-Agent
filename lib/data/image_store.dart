@@ -42,6 +42,28 @@ class ImageStore {
     );
   }
 
+  /// 保存附件，文件名保留原扩展名。
+  Future<FilePart> saveFile(Uint8List bytes, String name, String mime) async {
+    final ext = p.extension(name);
+    final stored = '${newId()}${ext.length <= 8 ? ext : ''}';
+    await (await file(stored)).writeAsBytes(bytes, flush: true);
+    return FilePart(stored, name, mime, bytes.length);
+  }
+
+  Future<Uint8List?> readBytes(String name) async {
+    final f = await file(name);
+    return await f.exists() ? f.readAsBytes() : null;
+  }
+
+  /// 复制一份（对话分支时，两个对话各自持有文件，删除互不影响）。
+  Future<String?> duplicate(String name) async {
+    final src = await file(name);
+    if (!await src.exists()) return null;
+    final copy = '${newId()}${p.extension(name)}';
+    await src.copy((await file(copy)).path);
+    return copy;
+  }
+
   Future<void> delete(String name) async {
     final f = await file(name);
     if (await f.exists()) await f.delete();
@@ -111,4 +133,106 @@ String? sniffImageMime(List<int> b) {
     return 'image/webp';
   }
   return null;
+}
+
+/// 附件类型：文本类文件把内容并入问题；PDF 原样发给模型。
+enum AttachmentKind { text, pdf }
+
+/// 可以作为附件的文本文件扩展名。
+const textFileExtensions = {
+  'txt',
+  'md',
+  'markdown',
+  'csv',
+  'tsv',
+  'json',
+  'jsonl',
+  'yaml',
+  'yml',
+  'xml',
+  'html',
+  'htm',
+  'css',
+  'log',
+  'ini',
+  'toml',
+  'conf',
+  'env',
+  'sql',
+  'dart',
+  'py',
+  'js',
+  'ts',
+  'jsx',
+  'tsx',
+  'java',
+  'kt',
+  'kts',
+  'swift',
+  'm',
+  'mm',
+  'c',
+  'h',
+  'cc',
+  'cpp',
+  'hpp',
+  'cs',
+  'go',
+  'rs',
+  'rb',
+  'php',
+  'sh',
+  'bash',
+  'zsh',
+  'ps1',
+  'bat',
+  'lua',
+  'r',
+  'scala',
+  'vue',
+  'svelte',
+  'gradle',
+  'properties',
+  'tex',
+  'srt',
+  'vtt',
+};
+
+/// 文本附件大小上限（约 50 万字符），PDF 上限 32MB。
+const maxTextFileBytes = 512 * 1024;
+const maxPdfBytes = 32 * 1024 * 1024;
+
+/// 判断附件类型；不支持的返回 null。
+AttachmentKind? attachmentKind(String name, Uint8List bytes) {
+  final ext = p.extension(name).replaceFirst('.', '').toLowerCase();
+  final isPdf =
+      ext == 'pdf' ||
+      (bytes.length >= 4 &&
+          bytes[0] == 0x25 &&
+          bytes[1] == 0x50 &&
+          bytes[2] == 0x44 &&
+          bytes[3] == 0x46);
+  if (isPdf) return AttachmentKind.pdf;
+  if (textFileExtensions.contains(ext)) return AttachmentKind.text;
+  // 没有扩展名或不认识的：看起来是 UTF-8 文本也接受。
+  if (bytes.length <= maxTextFileBytes && !bytes.contains(0)) {
+    try {
+      utf8.decode(bytes);
+      return AttachmentKind.text;
+    } catch (_) {}
+  }
+  return null;
+}
+
+/// 把文本附件拼进问题里发给模型。
+String fileAsPrompt(String name, String content) {
+  final fence = content.contains('```') ? '~~~~' : '```';
+  return '【附件：$name】\n$fence\n${content.trimRight()}\n$fence';
+}
+
+/// 300 → 300 B，2048 → 2.0 KB。
+String formatBytes(int n) {
+  if (n < 1024) return '$n B';
+  if (n < 1024 * 1024) return '${(n / 1024).toStringAsFixed(1)} KB';
+  return '${(n / 1024 / 1024).toStringAsFixed(1)} MB';
 }

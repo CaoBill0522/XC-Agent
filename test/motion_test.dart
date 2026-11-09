@@ -1,3 +1,8 @@
+import 'dart:typed_data';
+
+import 'package:agent/data/image_store.dart';
+
+import 'dart:convert';
 import 'dart:async';
 
 import 'package:agent/core/api/api_error.dart';
@@ -27,6 +32,7 @@ class _FakeChat implements ChatService {
     String convId,
     String text, {
     List<PendingImage> images = const [],
+    List<PendingFile> files = const [],
     String? quote,
     String? context,
   }) async {
@@ -377,5 +383,21 @@ void main() {
   test('打开链接：无效链接返回 false 不抛异常', () async {
     expect(await openLink('not a url'), isFalse);
     expect(await openLink('https://'), isFalse);
+  });
+
+  test('附件类型识别', () {
+    Uint8List b(String s) => Uint8List.fromList(utf8.encode(s));
+    expect(attachmentKind('a.PDF', b('x')), AttachmentKind.pdf);
+    expect(
+      attachmentKind('noext', Uint8List.fromList([0x25, 0x50, 0x44, 0x46])),
+      AttachmentKind.pdf,
+    );
+    expect(
+      attachmentKind('main.dart', b('void main() {}')),
+      AttachmentKind.text,
+    );
+    expect(attachmentKind('README', b('纯文本')), AttachmentKind.text);
+    expect(attachmentKind('a.bin', Uint8List.fromList([0, 1, 2, 255])), isNull);
+    expect(formatBytes(2048), '2.0 KB');
   });
 }

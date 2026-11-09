@@ -3,7 +3,11 @@ import 'package:flutter_miuix/miuix.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/chat/conversation_mode.dart';
+import '../../core/chat/conversation_options.dart';
 import '../../core/chat/participant.dart';
+import '../../core/api/api_error.dart';
+import '../../data/chat_service.dart';
+import '../../data/usage_service.dart';
 import '../../data/providers.dart';
 import '../../ui/app_icons.dart';
 import '../../ui/motion.dart';
@@ -35,6 +39,7 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
   final _snackbar = MiuixSnackbarHostState();
   List<Participant>? _selected;
   ConversationMode _mode = ConversationMode.single;
+  ConversationOptions _options = const ConversationOptions();
 
   @override
   void dispose() {
@@ -42,15 +47,26 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
     super.dispose();
   }
 
+  /// 已经在保存：保存完成、页面开始返回之前按钮还能再被点到，
+  /// 重复执行会多返回一层，把聊天页也关掉（模拟器上复现过）。
+  bool _applying = false;
+
   Future<void> _apply(List<Participant> list) async {
+    if (_applying) return;
     if (_mode.isGroup && list.length < 2) {
       _snackbar.showSnackbar('${_mode.label}至少需要选择 2 个');
       return;
     }
+    _applying = true;
     final mode = list.length > 1 ? _mode : ConversationMode.single;
     await ref
         .read(chatServiceProvider)
-        .setParticipants(widget.conversationId, list, mode: mode);
+        .setParticipants(
+          widget.conversationId,
+          list,
+          mode: mode,
+          options: _options,
+        );
     rememberParticipants(ref, list, mode);
     if (mounted) Navigator.of(context).maybePop();
   }
@@ -86,12 +102,25 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
       _mode =
           widget.initialMode ??
           ConversationMode.fromId(conv.mode, participants: _selected!.length);
+      _options = ConversationOptions.decode(conv.optionsJson);
       if (!_mode.isGroup && _selected!.length > 1) {
         _selected = [_selected!.first];
       }
     }
     final selected = _selected ?? [];
-    final chain = _mode == ConversationMode.chain;
+    // 接力和辩论都按顺序进行，需要排序。
+    final chain = _mode.isSequential;
+    final debate = _mode == ConversationMode.debate;
+    // 裁判 / 总结者的候选：可用的助手和模型。
+    final judgeCandidates = [
+      for (final a in agents)
+        if (a.modelId != null && models.any((m) => m.model.id == a.modelId))
+          Participant(modelId: a.modelId!, agentId: a.id),
+      for (final m in models) Participant(modelId: m.model.id),
+    ];
+    final judgeIndex = _options.judge == null
+        ? 0
+        : judgeCandidates.indexOf(_options.judge!) + 1;
     String label(Participant p) => participantLabel(p, models, agents);
 
     Widget item(
@@ -122,11 +151,11 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
     }
 
     return SettingsScaffold(
-      title: '选择模型',
+      title: '对话设置',
       snackbar: _snackbar,
       bottomBar: _mode.isGroup
           ? PrimaryButton(
-              text: chain
+              text: chain && !debate
                   ? '确定（${selected.length} 步）'
                   : '确定（已选 ${selected.length} 个）',
               enabled: selected.length >= 2,
@@ -150,6 +179,51 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
             ),
           ],
         ),
+        // 裁判 / 辩论：裁判或总结者、辩论轮数。
+        AnimatedSize(
+          duration: Motion.medium,
+          curve: Motion.curve,
+          alignment: Alignment.topCenter,
+          child: !_mode.hasJudge
+              ? const SizedBox(width: double.infinity)
+              : SettingsGroup(
+                  children: [
+                    MiuixOverlayDropdownPreference(
+                      title: debate ? '总结者' : '裁判',
+                      summary: debate
+                          ? '辩论结束后梳理各方观点并给出结论'
+                          : '对比各个回答、打分，并给出综合答案',
+                      items: [
+                        debate ? '第一位辩手' : '第一个回答者',
+                        for (final p in judgeCandidates) label(p),
+                      ],
+                      selectedIndex: judgeIndex < 0 ? 0 : judgeIndex,
+                      onSelectedIndexChange: (i) => setState(
+                        () => _options = _options.copyWith(
+                          judge: () => i == 0 ? null : judgeCandidates[i - 1],
+                        ),
+                      ),
+                    ),
+                    if (debate)
+                      MiuixOverlayDropdownPreference(
+                        title: '辩论轮数',
+                        summary: '每轮每位辩手各发言一次',
+                        items: [
+                          for (final r in ConversationOptions.roundChoices)
+                            '$r 轮',
+                        ],
+                        selectedIndex: ConversationOptions.roundChoices
+                            .indexOf(_options.rounds)
+                            .clamp(0, 2),
+                        onSelectedIndexChange: (i) => setState(
+                          () => _options = _options.copyWith(
+                            rounds: ConversationOptions.roundChoices[i],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
         // 执行顺序区出现 / 增删步骤时平滑伸缩，下方列表不会跳动。
         AnimatedSize(
           duration: Motion.medium,
@@ -158,12 +232,16 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
           child: !(chain && selected.isNotEmpty)
               ? const SizedBox(width: double.infinity)
               : SettingsGroup(
-                  title: '执行顺序（第 1 步收到原始问题，之后每步收到原始问题 + 上一步结果）',
+                  title: debate
+                      ? '发言顺序（每轮按这个顺序发言）'
+                      : '执行顺序（第 1 步收到原始问题，之后每步收到原始问题 + 上一步结果）',
                   children: [
                     for (final (i, p) in selected.indexed)
                       MiuixBasicComponent(
                         title: label(p),
-                        summary: i == 0
+                        summary: debate
+                            ? (i == 0 ? '先发言' : '第 ${i + 1} 个发言')
+                            : i == 0
                             ? '分析原始问题'
                             : i == selected.length - 1
                             ? '给出最终结论'
@@ -236,7 +314,7 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
                 ),
             ],
           ),
-        if (chain)
+        if (chain && !debate)
           Padding(
             padding: const EdgeInsets.fromLTRB(28, 4, 28, 0),
             child: MiuixText(
@@ -244,6 +322,130 @@ class _ParticipantPickerPageState extends ConsumerState<ParticipantPickerPage> {
               fontSize: 12,
               color: colors.onSurfaceVariantSummary,
             ),
+          ),
+        if (conv != null)
+          _ContextSettings(
+            conversationId: widget.conversationId,
+            options: _options,
+            onChanged: (o) {
+              setState(() => _options = o);
+              ref
+                  .read(chatServiceProvider)
+                  .setOptions(widget.conversationId, o);
+            },
+            onToast: _snackbar.showSnackbar,
+          ),
+      ],
+    );
+  }
+}
+
+/// 上下文设置：携带多少轮历史、过长时自动压缩、立即压缩 / 清除摘要。
+/// 改动立即保存（不需要点「确定」）。
+class _ContextSettings extends ConsumerStatefulWidget {
+  const _ContextSettings({
+    required this.conversationId,
+    required this.options,
+    required this.onChanged,
+    required this.onToast,
+  });
+
+  final String conversationId;
+  final ConversationOptions options;
+  final ValueChanged<ConversationOptions> onChanged;
+  final ValueChanged<String> onToast;
+
+  @override
+  ConsumerState<_ContextSettings> createState() => _ContextSettingsState();
+}
+
+class _ContextSettingsState extends ConsumerState<_ContextSettings> {
+  Future<int>? _tokens;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _estimate();
+  }
+
+  @override
+  void didUpdateWidget(_ContextSettings old) {
+    super.didUpdateWidget(old);
+    if (old.options.encode() != widget.options.encode()) _estimate();
+  }
+
+  void _estimate() => _tokens = ref
+      .read(chatServiceProvider)
+      .contextTokens(widget.conversationId);
+
+  Future<void> _compress() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(chatServiceProvider).compress(widget.conversationId);
+      final conv = await ref
+          .read(chatServiceProvider)
+          .conversation(widget.conversationId);
+      widget.onChanged(ConversationOptions.decode(conv?.optionsJson));
+      widget.onToast('已把早期对话压缩成摘要');
+    } on ApiException catch (e) {
+      widget.onToast(e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.options;
+    final choices = ConversationOptions.contextChoices;
+    final memory = o.memory;
+    return SettingsGroup(
+      title: '上下文',
+      children: [
+        FutureBuilder<int>(
+          future: _tokens,
+          builder: (context, snap) => MiuixBasicComponent(
+            title:
+                '下次请求约 ${snap.hasData ? formatTokens(snap.data!) : '…'} tokens',
+            summary: '按字数粗略估算，不含图片和 PDF',
+          ),
+        ),
+        MiuixOverlayDropdownPreference(
+          title: '携带历史',
+          summary: '每次只把最近几轮对话发给模型，省钱也避免超出上限',
+          items: [for (final n in choices) n == null ? '全部' : '最近 $n 轮'],
+          selectedIndex: choices
+              .indexOf(o.contextTurns)
+              .clamp(0, choices.length - 1),
+          onSelectedIndexChange: (i) =>
+              widget.onChanged(o.copyWith(contextTurns: () => choices[i])),
+        ),
+        MiuixSwitchPreference(
+          title: '过长时自动压缩',
+          summary:
+              '超过约 ${formatTokens(ChatService.autoCompressTokens)} tokens 时，先把早期对话总结成摘要再回答',
+          value: o.autoCompress,
+          onChanged: (v) => widget.onChanged(o.copyWith(autoCompress: v)),
+        ),
+        MiuixArrowPreference(
+          title: _busy ? '正在压缩…' : '立即压缩早期对话',
+          summary: memory == null
+              ? '保留最近 ${ChatService.keepRecentTurns} 轮原文，之前的内容总结成摘要'
+              : '已有摘要（约 ${formatTokens(estimateTokens(memory.summary))} tokens），再次压缩会合并进去',
+          enabled: !_busy,
+          onClick: _busy ? null : _compress,
+        ),
+        if (memory != null)
+          MiuixArrowPreference(
+            title: '清除摘要',
+            summary: '恢复按原文发送全部历史',
+            onClick: () async {
+              await ref
+                  .read(chatServiceProvider)
+                  .clearCompression(widget.conversationId);
+              widget.onChanged(o.copyWith(memory: () => null));
+            },
           ),
       ],
     );

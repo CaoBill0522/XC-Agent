@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:agent/core/api/api_error.dart';
 import 'package:agent/core/api/chat_client.dart';
 import 'package:agent/core/api/protocol.dart';
 import 'package:agent/core/chat/chat_types.dart';
 import 'package:agent/core/chat/conversation_mode.dart';
+import 'package:agent/core/chat/conversation_options.dart';
 import 'package:agent/core/chat/participant.dart';
 import 'package:agent/core/routing/model_router.dart';
 import 'package:agent/data/chat_service.dart';
@@ -656,6 +658,272 @@ void main() {
       final msgs = await settle(conv);
       expect(msgs.last.status, MsgStatus.error);
       expect(http.requests, hasLength(1));
+    });
+  });
+
+  test('搜索：标题和内容都能搜到，片段标出命中位置；通配符按字面匹配', () async {
+    await channel('a.com', ['A']);
+    http.handler = (_) => sse([chunk('相对论说的是时空是弯曲的。'), '[DONE]']);
+    final conv = await chat.createConversation([
+      Participant(modelId: await modelId('A')),
+    ]);
+    await chat.send(conv, '讲讲相对论');
+    await settle(conv);
+    await chat.rename(conv, '物理问题');
+    final other = await chat.createConversation([
+      Participant(modelId: await modelId('A')),
+    ], title: '100% 纯度');
+
+    var hits = await chat.search('时空');
+    expect(hits, hasLength(1));
+    expect(hits.single.role, 'assistant');
+    final h = hits.single;
+    expect(
+      h.snippet.substring(h.matchStart, h.matchStart + h.matchLength),
+      '时空',
+    );
+
+    hits = await chat.search('物理');
+    expect(hits.single.messageId, isNull, reason: '标题命中');
+
+    hits = await chat.search('相对论');
+    expect(hits.map((h) => h.role), containsAll(['user', 'assistant']));
+
+    // % 是 LIKE 通配符，必须按字面匹配。
+    hits = await chat.search('0%');
+    expect(hits.single.conversation.id, other);
+    expect(await chat.search('type'), isEmpty, reason: '不匹配 JSON 键名');
+  });
+
+  test('附件：文本文件并入问题，PDF 作为文件块原样发送；删除消息时一并删除文件', () async {
+    await channel('a.com', ['A']);
+    final conv = await chat.createConversation([
+      Participant(modelId: await modelId('A')),
+    ]);
+    final pdf = Uint8List.fromList([0x25, 0x50, 0x44, 0x46, 1, 2, 3]);
+    await chat.send(
+      conv,
+      '看看这些',
+      files: [
+        PendingFile(
+          Uint8List.fromList(utf8.encode('print(1)')),
+          'a.py',
+          'text/plain',
+        ),
+        PendingFile(pdf, '报告.pdf', 'application/pdf'),
+      ],
+    );
+    final msgs = await settle(conv);
+    final user = ContentPart.decodeList(msgs.first.partsJson);
+    expect(user.files.map((f) => f.name), ['a.py', '报告.pdf']);
+
+    final content =
+        ((http.requests.single.data as Map)['messages'] as List).last['content']
+            as List;
+    expect(content.first['type'], 'text');
+    expect(content.first['text'], contains('【附件：a.py】'));
+    expect(content.first['text'], contains('print(1)'));
+    expect(content.first['text'], endsWith('看看这些'));
+    expect(content.last['type'], 'file');
+    expect(content.last['file']['filename'], '报告.pdf');
+    expect(
+      content.last['file']['file_data'],
+      startsWith('data:application/pdf;base64,'),
+    );
+    expect((await chat.conversation(conv))!.title, '看看这些');
+
+    final dir = Directory('${tmp.path}/images');
+    expect(dir.listSync(), hasLength(2));
+    await chat.deleteMessage(msgs.first.id);
+    expect(dir.listSync(), isEmpty);
+  });
+
+  group('上下文管理', () {
+    late String conv;
+    late List<List<Map>> sent;
+
+    setUp(() async {
+      sent = [];
+      await channel('a.com', ['A']);
+      conv = await chat.createConversation([
+        Participant(modelId: await modelId('A')),
+      ]);
+      http.handler = (o) {
+        final msgs = ((o.data as Map)['messages'] as List).cast<Map>();
+        sent.add(msgs);
+        final last = msgs.last['content'] as String;
+        return sse([
+          chunk(last.contains('压缩成一份摘要') ? '摘要：聊了一二三' : '答$last'),
+          '[DONE]',
+        ]);
+      };
+      for (final q in ['一', '二', '三', '四']) {
+        await chat.send(conv, q);
+        await settle(conv);
+      }
+    });
+
+    List<String> lastContents() => [
+      for (final m in sent.last) m['content'] as String,
+    ];
+
+    test('只携带最近 N 轮', () async {
+      await chat.setOptions(conv, const ConversationOptions(contextTurns: 2));
+      await chat.send(conv, '五');
+      await settle(conv);
+      expect(lastContents(), ['四', '答四', '五']);
+    });
+
+    test('立即压缩：早期对话换成摘要，保留最近两轮原文；可清除', () async {
+      final before = await chat.contextTokens(conv);
+      await chat.compress(conv);
+      expect(lastContents().last, contains('压缩成一份摘要'));
+      expect(lastContents().first, '一', reason: '压缩请求带上了早期对话');
+      final opts = ConversationOptions.decode(
+        (await chat.conversation(conv))!.optionsJson,
+      );
+      expect(opts.memory!.summary, '摘要：聊了一二三');
+      expect(await chat.contextTokens(conv), lessThan(before + 20));
+
+      await chat.send(conv, '五');
+      await settle(conv);
+      final c = lastContents();
+      expect(c.first, contains('【之前对话的摘要】\n摘要：聊了一二三'));
+      expect(c.sublist(2), ['三', '答三', '四', '答四', '五']);
+
+      await chat.clearCompression(conv);
+      await chat.send(conv, '六');
+      await settle(conv);
+      expect(lastContents().first, '一');
+    });
+
+    test('自动压缩：超过阈值时先压缩再回答，回答里提示', () async {
+      await chat.setOptions(
+        conv,
+        const ConversationOptions(autoCompress: true),
+      );
+      await chat.send(conv, '长' * (ChatService.autoCompressTokens + 10));
+      final msgs = await settle(conv);
+      final opts = ConversationOptions.decode(
+        (await chat.conversation(conv))!.optionsJson,
+      );
+      expect(opts.memory, isNotNull);
+      final notice = ContentPart.decodeList(msgs.last.partsJson).notices;
+      expect(notice.single.text, contains('自动'));
+    });
+
+    test('太短时不压缩', () async {
+      final short = await chat.createConversation([
+        Participant(modelId: await modelId('A')),
+      ]);
+      await chat.send(short, '只有一轮');
+      await settle(short);
+      expect(() => chat.compress(short), throwsA(isA<ApiException>()));
+    });
+
+    test('分支：复制到所选消息为止，消息 id 全新，继续对话只带分支前的内容', () async {
+      final msgs = await chat.messagesOf(conv);
+      final secondAnswer = msgs[3];
+      final branch = await chat.branchFrom(secondAnswer.id);
+      final copied = await chat.messagesOf(branch);
+      expect(copied.map((m) => ContentPart.decodeList(m.partsJson).text), [
+        '一',
+        '答一',
+        '二',
+        '答二',
+      ]);
+      expect(
+        copied
+            .map((m) => m.id)
+            .toSet()
+            .intersection(msgs.map((m) => m.id).toSet()),
+        isEmpty,
+      );
+      final c = (await chat.conversation(branch))!;
+      expect(c.title, startsWith('分支：'));
+      expect(
+        c.participantsJson,
+        (await chat.conversation(conv))!.participantsJson,
+      );
+
+      // 分支里继续对话，上下文只有分支前的内容。
+      await chat.send(branch, '分支问题');
+      await settle(branch);
+      expect(lastContents(), ['一', '答一', '二', '答二', '分支问题']);
+    });
+  });
+
+  group('裁判与辩论', () {
+    /// 记录每次请求收到的最后一条用户消息（按顺序）。
+    late List<(String, String)> calls;
+
+    setUp(() {
+      calls = [];
+      http.handler = (o) {
+        final body = o.data as Map;
+        final model = body['model'] as String;
+        final msgs = (body['messages'] as List).cast<Map>();
+        calls.add((
+          model,
+          msgs.lastWhere((m) => m['role'] == 'user')['content'] as String,
+        ));
+        return sse([chunk('$model说${calls.length}'), '[DONE]']);
+      };
+    });
+
+    test('裁判：各模型回答完后，裁判收到所有回答，其综合答案被采纳', () async {
+      await channel('a.com', ['A', 'B', 'J']);
+      final conv = await chat.createConversation([
+        Participant(modelId: await modelId('A')),
+        Participant(modelId: await modelId('B')),
+      ], mode: ConversationMode.judge);
+      await chat.setOptions(
+        conv,
+        ConversationOptions(judge: Participant(modelId: await modelId('J'))),
+      );
+      await chat.send(conv, '哪个对');
+      final answers = (await settle(conv))
+          .where((m) => m.role == 'assistant')
+          .toList();
+      expect(answers, hasLength(3));
+      final judge = answers.singleWhere((m) => m.kind == MsgKind.judge);
+      expect(judge.adopted, isTrue);
+      expect(answers.where((m) => m.adopted), hasLength(1));
+      // 裁判是最后一个请求，提示里包含原始问题和两个回答。
+      final (model, prompt) = calls.last;
+      expect(model, 'J');
+      expect(prompt, contains('【原始问题】\n哪个对'));
+      expect(prompt, contains('【回答 1：A】'));
+      expect(prompt, contains('【回答 2：B】'));
+      expect(prompt, contains('综合答案'));
+    });
+
+    test('辩论：按轮次交替发言，每次带上之前的发言，最后由总结者总结并被采纳', () async {
+      await channel('a.com', ['A', 'B']);
+      final conv = await chat.createConversation([
+        Participant(modelId: await modelId('A')),
+        Participant(modelId: await modelId('B')),
+      ], mode: ConversationMode.debate);
+      await chat.setOptions(conv, const ConversationOptions(rounds: 2));
+      await chat.send(conv, '猫好还是狗好');
+      final steps =
+          (await settle(conv)).where((m) => m.role == 'assistant').toList()
+            ..sort((a, b) => a.stepIndex!.compareTo(b.stepIndex!));
+      expect(steps.map((m) => m.kind), [
+        MsgKind.debate,
+        MsgKind.debate,
+        MsgKind.debate,
+        MsgKind.debate,
+        MsgKind.summary,
+      ]);
+      expect(calls.map((c) => c.$1), ['A', 'B', 'A', 'B', 'A']);
+      expect(calls[0].$2, contains('先就这个问题给出你的观点'));
+      expect(calls[1].$2, contains('A说1'));
+      expect(calls[2].$2, contains('第 2 / 2 轮'));
+      expect(calls[2].$2, contains('B说2'));
+      expect(calls.last.$2, contains('总结者'));
+      expect(calls.last.$2, contains('B说4'));
+      expect(steps.last.adopted, isTrue);
     });
   });
 

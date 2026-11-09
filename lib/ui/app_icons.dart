@@ -46,6 +46,12 @@ class AppIcons {
   static MiuixVectorIcon get favorites => _ext('favorites');
   static MiuixVectorIcon get favoritesFill => _ext('favoritesFill');
   static MiuixVectorIcon get tune => _ext('tune');
+  static MiuixVectorIcon get notes => _ext('notes');
+  static MiuixVectorIcon get merge => _ext('merge');
+  static MiuixVectorIcon get branch => _ext('mindMap');
+  static MiuixVectorIcon get share => _ext('share');
+  static MiuixVectorIcon get file => _ext('file');
+  static MiuixVectorIcon get filter => _ext('filter');
   static MiuixVectorIcon get backup => _ext('backup');
   static MiuixVectorIcon get search => MiuixIcons.basic.search;
   static MiuixVectorIcon get sidebar => MiuixIcons.basic.sidebar;

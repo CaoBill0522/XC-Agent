@@ -22,6 +22,12 @@ class OpenAIResponsesAdapter extends ProtocolAdapter {
                   if (t.text.isNotEmpty) {'type': 'input_text', 'text': t.text},
                   for (final img in t.images)
                     {'type': 'input_image', 'image_url': img.dataUrl},
+                  for (final f in t.files)
+                    {
+                      'type': 'input_file',
+                      'filename': f.name,
+                      'file_data': f.dataUrl,
+                    },
                 ],
         },
     ];

@@ -10,6 +10,7 @@ import '../../ui/layout.dart';
 import '../../ui/motion.dart';
 import '../chat/chat_page.dart';
 import '../conversations/conversation_list.dart';
+import '../search/search_page.dart';
 import '../settings/settings_page.dart';
 import '../../ui/top_bar_text.dart';
 
@@ -49,6 +50,12 @@ class _NarrowHomeState extends ConsumerState<_NarrowHome> {
           title: 'Agent',
           scrollBehavior: _scrollBehavior,
           actions: [
+            AppIconButton(
+              icon: AppIcons.search,
+              onPressed: () =>
+                  Navigator.of(context)
+                      .push(appRoute(SearchPage(onOpen: _openChat))),
+            ),
             AppIconButton(
               icon: AppIcons.settings,
               onPressed: () => Navigator.of(
@@ -188,6 +195,19 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                                 'Agent',
                                 style: theme.textStyles.title3,
                                 fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            AppIconButton(
+                              icon: AppIcons.search,
+                              onPressed: () => Navigator.of(context).push(
+                                appRoute(
+                                  SearchPage(
+                                    onOpen: (id) {
+                                      Navigator.of(context).pop();
+                                      _showChat(id);
+                                    },
+                                  ),
+                                ),
                               ),
                             ),
                             AppIconButton(

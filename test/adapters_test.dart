@@ -417,4 +417,40 @@ data: {"type":"message_delta","usage":{"output_tokens":4}}
       );
     });
   });
+
+  group('PDF 附件', () {
+    const pdf = InlineFile(
+      name: 'a.pdf',
+      mime: 'application/pdf',
+      base64: 'QUJD',
+    );
+    ChatRequest req() => const ChatRequest(
+      model: 'm',
+      turns: [
+        ChatTurn(role: 'user', text: '总结', files: [pdf]),
+      ],
+    );
+
+    test('Anthropic：document 块', () {
+      final body = const AnthropicAdapter().buildBody(req());
+      final block =
+          ((body['messages'] as List).single['content'] as List).first;
+      expect(block['type'], 'document');
+      expect(block['source'], {
+        'type': 'base64',
+        'media_type': 'application/pdf',
+        'data': 'QUJD',
+      });
+    });
+
+    test('Responses：input_file', () {
+      final body = const OpenAIResponsesAdapter().buildBody(req());
+      final parts = ((body['input'] as List).single['content'] as List);
+      expect(parts.last, {
+        'type': 'input_file',
+        'filename': 'a.pdf',
+        'file_data': 'data:application/pdf;base64,QUJD',
+      });
+    });
+  });
 }

@@ -11,6 +11,8 @@ import '../channels/channels_page.dart';
 import '../models/models_page.dart';
 import 'appearance_page.dart';
 import 'data_page.dart';
+import 'prompts_page.dart';
+import 'usage_page.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key, this.embedded = false});
@@ -53,6 +55,12 @@ class SettingsPage extends ConsumerWidget {
               onClick: () => push(const ModelsPage()),
             ),
             MiuixArrowPreference(
+              title: '提示词',
+              summary: '常用提问方式，在输入框里打 / 调出',
+              startAction: icon(AppIcons.notes),
+              onClick: () => push(const PromptsPage()),
+            ),
+            MiuixArrowPreference(
               title: '助手',
               summary: agents.isEmpty ? '系统提示词与参数预设' : '${agents.length} 个助手',
               startAction: icon(AppIcons.edit),
@@ -63,6 +71,12 @@ class SettingsPage extends ConsumerWidget {
         SettingsGroup(
           title: '通用',
           children: [
+            MiuixArrowPreference(
+              title: '用量统计',
+              summary: 'token 用量、费用估算、渠道余额',
+              startAction: icon(AppIcons.filter),
+              onClick: () => push(const UsagePage()),
+            ),
             MiuixArrowPreference(
               title: '外观',
               summary: '深色模式、主题色',

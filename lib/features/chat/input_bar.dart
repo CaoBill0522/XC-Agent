@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_miuix/miuix.dart';
@@ -17,6 +18,8 @@ import '../../ui/image_view.dart';
 import '../../ui/layout.dart';
 import '../../ui/motion.dart';
 import '../../ui/vendor/app_text_field.dart';
+import '../../data/db/app_database.dart';
+import '../settings/prompts_page.dart';
 import 'follow_up.dart';
 
 /// 输入栏的控制器：外部（拖拽、粘贴）也能往里加图片；追问时设置引用片段 /
@@ -50,9 +53,11 @@ class InputBarController extends ChangeNotifier {
   void restore({
     String? quote,
     List<PendingImage> images = const [],
+    List<PendingFile> files = const [],
     SummaryJob? summary,
   }) {
     this.images.insertAll(0, images);
+    this.files.insertAll(0, files);
     this.quote ??= quote;
     if (summary != null) {
       if (this.summary == null) {
@@ -96,6 +101,39 @@ class InputBarController extends ChangeNotifier {
     final out = List<PendingImage>.of(images);
     images.clear();
     notifyListeners();
+    return out;
+  }
+
+  /// 附件文件（PDF、文本、代码等）。
+  final files = <PendingFile>[];
+
+  /// 加入附件；不支持的类型或过大时返回错误提示，成功返回 null。
+  String? addFile(Uint8List bytes, String name) {
+    final kind = attachmentKind(name, bytes);
+    if (kind == null) return '不支持「$name」这种文件（支持 PDF、文本和代码文件）';
+    final limit = kind == AttachmentKind.pdf ? maxPdfBytes : maxTextFileBytes;
+    if (bytes.length > limit) {
+      return '「$name」太大了（上限 ${formatBytes(limit)}）';
+    }
+    files.add(
+      PendingFile(
+        bytes,
+        name,
+        kind == AttachmentKind.pdf ? 'application/pdf' : 'text/plain',
+      ),
+    );
+    notifyListeners();
+    return null;
+  }
+
+  void removeFile(int i) {
+    files.removeAt(i);
+    notifyListeners();
+  }
+
+  List<PendingFile> takeFiles() {
+    final out = List<PendingFile>.of(files);
+    files.clear();
     return out;
   }
 }
@@ -147,6 +185,13 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 
   void _rebuild() => setState(() {});
 
+  /// 输入以 / 开头（还没换行）时，/ 后面的文字用来筛选提示词。
+  String? get _slashQuery {
+    final t = _text.text;
+    if (!t.startsWith('/') || t.contains('\n')) return null;
+    return t.substring(1);
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final hw = HardwareKeyboard.instance;
@@ -184,21 +229,38 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       }
     }
 
-    if (Platform.isIOS || Platform.isAndroid) {
-      await showActionSheet(
-        context,
-        actions: [
-          SheetAction('从相册选择', fromGallery, icon: AppIcons.image),
+    final mobile = Platform.isIOS || Platform.isAndroid;
+    await showActionSheet(
+      context,
+      actions: [
+        SheetAction(
+          mobile ? '从相册选择' : '选择图片',
+          fromGallery,
+          icon: AppIcons.image,
+        ),
+        if (mobile)
           SheetAction('拍照', () async {
             final f = await picker.pickImage(source: ImageSource.camera);
             if (f != null) {
               await widget.controller.addImageBytes(await f.readAsBytes());
             }
           }, icon: AppIcons.photos),
-        ],
-      );
-    } else {
-      await fromGallery();
+        SheetAction('选择文件（PDF、文本、代码）', _pickFiles, icon: AppIcons.file),
+      ],
+    );
+  }
+
+  Future<void> _pickFiles() async {
+    final files = await openFiles();
+    for (final f in files) {
+      final bytes = await f.readAsBytes();
+      final isImage = sniffImageMime(bytes) != null;
+      if (isImage) {
+        await widget.controller.addImageBytes(bytes);
+        continue;
+      }
+      final error = widget.controller.addFile(bytes, f.name);
+      if (error != null) widget.onError(error);
     }
   }
 
@@ -206,7 +268,12 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     if (widget.generating) return;
     final c = widget.controller;
     final text = _text.text.trim();
-    if (text.isEmpty && c.images.isEmpty && c.quote == null) return;
+    if (text.isEmpty &&
+        c.images.isEmpty &&
+        c.files.isEmpty &&
+        c.quote == null) {
+      return;
+    }
     if (!widget.hasParticipants) {
       widget.onError('请先选择对话方式');
       return;
@@ -219,6 +286,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final job = c.detachSummary();
     final summary = job?.error == null ? job?.text : null;
     final images = c.take();
+    final files = c.takeFiles();
     c.quote = null;
     _text.clear();
     // 手机上发送后收起键盘（与 ChatGPT 客户端一致），方便看回答；
@@ -231,6 +299,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
             widget.conversationId,
             text,
             images: images,
+            files: files,
             quote: quote,
             context: summary,
           );
@@ -239,7 +308,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       // 没发出去：把文字、图片、引用和总结都放回输入栏，不让用户重来。
       if (mounted) {
         if (_text.text.isEmpty) _text.text = text;
-        c.restore(quote: quote, images: images, summary: job);
+        c.restore(quote: quote, images: images, files: files, summary: job);
       } else {
         job?.dispose();
       }
@@ -261,6 +330,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     final canSend =
         (_text.text.trim().isNotEmpty ||
             images.isNotEmpty ||
+            c.files.isNotEmpty ||
             c.quote != null) &&
         !(c.summary?.loading ?? false);
 
@@ -278,6 +348,29 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 打 / 调出提示词。
+              AnimatedSize(
+                duration: Motion.medium,
+                curve: Motion.curve,
+                alignment: Alignment.bottomLeft,
+                child: _slashQuery == null
+                    ? const SizedBox(width: double.infinity)
+                    : Padding(
+                        padding: EdgeInsets.fromLTRB(gutter, 0, gutter, 8),
+                        child: PromptPanel(
+                          query: _slashQuery!,
+                          onPick: (p) {
+                            _text.value = TextEditingValue(
+                              text: p.content,
+                              selection: TextSelection.collapsed(
+                                offset: p.content.length,
+                              ),
+                            );
+                            _focus.requestFocus();
+                          },
+                        ),
+                      ),
+              ),
               // 追问：前文总结 + 引用片段，显示在输入框上方。
               AnimatedSize(
                 duration: Motion.medium,
@@ -292,6 +385,31 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                           summary: c.summary,
                           onRemoveQuote: () => c.setQuote(null),
                           onRemoveSummary: () => c.setSummary(null),
+                        ),
+                      ),
+              ),
+              AnimatedSize(
+                duration: Motion.medium,
+                curve: Motion.curve,
+                alignment: Alignment.bottomLeft,
+                child: c.files.isEmpty
+                    ? const SizedBox(width: double.infinity)
+                    : Padding(
+                        padding: EdgeInsets.fromLTRB(gutter, 2, gutter, 6),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final (i, f) in c.files.indexed)
+                              AppearIn(
+                                key: ObjectKey(f),
+                                child: FileChip(
+                                  name: f.name,
+                                  size: f.bytes.length,
+                                  onRemove: () => c.removeFile(i),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
               ),
@@ -420,6 +538,151 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
           ),
         );
       },
+    );
+  }
+}
+
+/// 附件文件标签：图标 + 文件名 + 大小，可选删除按钮。输入栏和用户消息共用。
+class FileChip extends StatelessWidget {
+  const FileChip({
+    super.key,
+    required this.name,
+    required this.size,
+    this.onRemove,
+    this.onPrimary = false,
+  });
+
+  final String name;
+  final int size;
+  final VoidCallback? onRemove;
+
+  /// 放在主题色背景（用户气泡）上时用反色。
+  final bool onPrimary;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
+    final fg = onPrimary ? colors.onPrimary : colors.onSurface;
+    final sub = onPrimary
+        ? colors.onPrimary.withValues(alpha: 0.75)
+        : colors.onSurfaceVariantSummary;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 240),
+      padding: EdgeInsets.fromLTRB(10, 8, onRemove == null ? 12 : 4, 8),
+      decoration: ShapeDecoration(
+        color: onPrimary
+            ? colors.onPrimary.withValues(alpha: 0.15)
+            : colors.surfaceContainer,
+        shape: const MiuixSquircleBorder(cornerRadius: 12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          MiuixIcon(vector: AppIcons.file, size: 20, tint: fg),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                MiuixText(
+                  name,
+                  fontSize: 13,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  color: fg,
+                ),
+                MiuixText(formatBytes(size), fontSize: 11, color: sub),
+              ],
+            ),
+          ),
+          if (onRemove != null)
+            Tap(
+              onTap: onRemove,
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: MiuixIcon(vector: AppIcons.close, size: 14, tint: sub),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 提示词选择面板（输入 / 时出现在输入框上方）。
+class PromptPanel extends ConsumerWidget {
+  const PromptPanel({super.key, required this.query, required this.onPick});
+
+  final String query;
+  final ValueChanged<Prompt> onPick;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = MiuixTheme.of(context).colors;
+    final q = query.trim().toLowerCase();
+    final all = ref.watch(promptsProvider).value ?? const <Prompt>[];
+    final matches = [
+      for (final p in all)
+        if (q.isEmpty ||
+            p.title.toLowerCase().contains(q) ||
+            p.content.toLowerCase().contains(q))
+          p,
+    ];
+    Widget row(String title, String? summary, VoidCallback onTap) => Tap(
+      sink: false,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            MiuixText(title, fontSize: 14, fontWeight: FontWeight.w600),
+            if (summary != null)
+              MiuixText(
+                summary,
+                fontSize: 12,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                color: colors.onSurfaceVariantSummary,
+              ),
+          ],
+        ),
+      ),
+    );
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 260),
+      decoration: ShapeDecoration(
+        color: colors.surfaceContainer,
+        shape: const MiuixSquircleBorder(cornerRadius: 14),
+      ),
+      child: ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        children: [
+          for (final p in matches)
+            row(
+              p.title,
+              p.content.trim().replaceAll('\n', ' '),
+              () => onPick(p),
+            ),
+          if (matches.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: MiuixText(
+                '没有匹配的提示词',
+                fontSize: 13,
+                color: colors.onSurfaceVariantSummary,
+              ),
+            ),
+          row(
+            '管理提示词…',
+            null,
+            () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const PromptsPage())),
+          ),
+        ],
+      ),
     );
   }
 }
