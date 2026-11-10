@@ -10,6 +10,10 @@ import '../../ui/settings_widgets.dart';
 const githubUrl = 'https://github.com/CaoBill0522/XCAgent';
 const websiteUrl = 'https://agent.oxoz.cn';
 const copyrightHolder = 'Jiacheng Cao';
+
+/// 官网上的页面（隐私政策、使用条款、用户支持），按界面语言打开中文或英文版。
+String sitePage(String page) =>
+    '$websiteUrl/$page${L10n.isEn ? '?lang=en' : '?lang=zh'}';
 const copyrightYear = 2026;
 
 /// 鸣谢：用到的主要开源项目（名称、用途、许可证、主页）。
@@ -183,6 +187,23 @@ class _AboutPageState extends State<AboutPage> {
                 ),
               ),
               onClick: () => openLink(websiteUrl),
+            ),
+          ],
+        ),
+        SettingsGroup(
+          children: [
+            MiuixArrowPreference(
+              title: tr('用户支持'),
+              summary: tr('常见问题、联系我们'),
+              onClick: () => openLink(sitePage('support.html')),
+            ),
+            MiuixArrowPreference(
+              title: tr('隐私政策'),
+              onClick: () => openLink(sitePage('privacy.html')),
+            ),
+            MiuixArrowPreference(
+              title: tr('使用条款'),
+              onClick: () => openLink(sitePage('terms.html')),
             ),
           ],
         ),

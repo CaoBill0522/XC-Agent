@@ -920,8 +920,19 @@ void main() {
     await _open(tester, const AboutPage());
     expect(find.text('GitHub'), findsOneWidget);
     expect(find.text('agent.oxoz.cn'), findsOneWidget);
-    expect(find.text('© 2026 Jiacheng Cao'), findsOneWidget);
-    expect(find.text('flutter_miuix'), findsOneWidget);
+    expect(find.text('隐私政策'), findsOneWidget);
+    expect(find.text('使用条款'), findsOneWidget);
+    expect(find.text('用户支持'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('© 2026 Jiacheng Cao'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.scrollUntilVisible(
+      find.text('flutter_miuix'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('cn.oxoz.agent'), findsNothing);
     // 语音输入：切到模型转写后，默认选第一个渠道和它的推荐模型。
     await _open(tester, const VoicePage());

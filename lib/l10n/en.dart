@@ -556,6 +556,10 @@ const enStrings = <String, String>{
   '支持 OpenAI / Anthropic 格式的多模型 AI 客户端':
       'A multi-model AI client for OpenAI- and Anthropic-format APIs',
   '官网': 'Website',
+  '用户支持': 'Support',
+  '常见问题、联系我们': 'FAQ and contact',
+  '隐私政策': 'Privacy Policy',
+  '使用条款': 'Terms of Use',
   '版权': 'Copyright',
   '以 MIT 许可证开源': 'Open source under the MIT License',
   '开源许可': 'Open source licenses',
@@ -600,8 +604,10 @@ const enStrings = <String, String>{
   '先添加一个 OpenAI 格式的渠道；没设置好时仍用系统识别': 'Add an OpenAI-format channel first. Until then, system recognition is used.',
   '未设置': 'Not set',
   '系统识别：边说边出字，免费，但一次只认一种语言，中文里夹的英文容易认错。\n\n模型转写：松手后把录音发给所选渠道的语音模型，中英混说也能认对，比如「这个 style 我不喜欢」。按渠道的价格计费；录音只发给这个渠道，识别完就删除。\n\n推荐：OpenAI 的 gpt-4o-transcribe，硅基流动的 FunAudioLLM/SenseVoiceSmall，Groq 的 whisper-large-v3-turbo，智谱的 glm-asr。': 'System recognition: text appears as you speak and it is free, but it understands one language at a time, so English words inside Chinese are often misheard.\n\nModel transcription: when you let go, the recording is sent to the speech model of the chosen channel, which handles mixed Chinese and English. Billed at the channel price; the recording is only sent to that channel and is deleted after transcription.\n\nSuggested: gpt-4o-transcribe (OpenAI), FunAudioLLM/SenseVoiceSmall (SiliconFlow), whisper-large-v3-turbo (Groq), glm-asr (Zhipu).',
-  '按住输入框说话；中英混说可以用模型转写': 'Hold the input box to talk; use model transcription for mixed languages',
-  '无法录音：请在系统设置里允许使用麦克风': 'Cannot record: allow microphone access in system settings',
+  '按住输入框说话；中英混说可以用模型转写':
+      'Hold the input box to talk; use model transcription for mixed languages',
+  '无法录音：请在系统设置里允许使用麦克风':
+      'Cannot record: allow microphone access in system settings',
   '语音转写失败：{0}': 'Transcription failed: {0}',
   '正在识别…': 'Transcribing…',
   '正在录音，松手后识别': 'Recording. Let go to transcribe',

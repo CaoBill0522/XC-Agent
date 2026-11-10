@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title data-en="Support — XCAgent">用户支持 — XCAgent</title>
+<meta name="description" content="XCAgent 用户支持：联系方式、快速上手和常见问题。">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="assets/style.css">
+<script>(function(){var l;try{l=new URLSearchParams(location.search).get('lang')||localStorage.getItem('lang')}catch(e){}if(l!=='en'&&l!=='zh')l=/^zh/i.test(navigator.language||'zh')?'zh':'en';document.documentElement.setAttribute('data-lang',l)})()</script>
+</head>
+<body>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="./"><img class="logo-light" src="assets/logo-light.png" alt=""><img class="logo-dark" src="assets/logo-dark.png" alt=""><span>XCAgent</span></a>
+    <nav class="nav-links">
+      <a class="optional" href="./#features"><span class="zh">功能</span><span class="en">Features</span></a>
+      <a href="support.html" aria-current="page"><span class="zh">支持</span><span class="en">Support</span></a>
+      <a href="privacy.html"><span class="zh">隐私</span><span class="en">Privacy</span></a>
+    </nav>
+    <button class="lang-btn" id="lang" type="button" aria-label="切换语言 / Switch language"><span class="zh">EN</span><span class="en">中文</span></button>
+  </div>
+</header>
+
+<main class="doc">
+
+<!-- ───────────── 中文 ───────────── -->
+<article class="zh">
+<h1>用户支持</h1>
+<p class="meta">遇到问题、有建议，或者发现了 bug，都欢迎告诉我们。</p>
+
+<div class="contact">
+  <a class="card" href="mailto:caojiacheng38@gmail.com?subject=XCAgent%20%E5%8F%8D%E9%A6%88">
+    <strong>发邮件</strong>
+    <span>caojiacheng38@gmail.com</span>
+  </a>
+  <a class="card" href="https://github.com/CaoBill0522/XCAgent/issues">
+    <strong>在 GitHub 提问题</strong>
+    <span>github.com/CaoBill0522/XCAgent/issues</span>
+  </a>
+</div>
+<p>我们会尽快回复。反馈问题时，最好附上：设备型号和系统版本、App 版本（「设置 → 关于」里可以看到）、使用的服务商和模型，以及出错时的提示文字或截图。<strong>请不要在邮件或 GitHub 中附上你的 API Key。</strong></p>
+
+<h2 id="download">下载</h2>
+<p>XCAgent 即将登陆 App Store（iPhone、iPad、Mac）。上架后会在这里放上下载链接。</p>
+
+<h2>快速上手</h2>
+<ol>
+  <li>准备一个 AI 服务商的 API Key，例如 OpenAI、Anthropic、DeepSeek、智谱、xAI，或你常用的中转站。</li>
+  <li>打开 App，进入「设置 → 渠道 → 添加渠道」，选择服务商（中转站选「自定义 / 中转站」并填写接口地址），粘贴 API Key。</li>
+  <li>保存后 App 会自动拉取可用的模型列表。</li>
+  <li>回到首页新建对话，选择一个或多个模型，开始提问。</li>
+</ol>
+
+<h2>常见问题</h2>
+
+<details class="faq"><summary>XCAgent 收费吗？模型费用怎么算？</summary><div>
+<p>XCAgent 本身不提供 AI 服务，模型调用的费用由你的 AI 服务商按其价格向你收取，XCAgent 不经手任何费用。你可以在「设置 → 用量统计」查看各模型、各渠道用了多少 token。</p>
+</div></details>
+
+<details class="faq"><summary>添加渠道后没有模型 / 拉取模型失败</summary><div>
+<p>请检查：API Key 是否正确、是否还有余额；接口地址是否完整（OpenAI 兼容的中转站通常以 <code>/v1</code> 结尾）；接口格式（OpenAI / Anthropic）是否选对。有的中转站不提供模型列表接口，这时可以在渠道里手动添加模型名。</p>
+</div></details>
+
+<details class="faq"><summary>发送消息后报错</summary><div>
+<p>错误提示来自服务商，常见原因：<code>401</code> Key 无效；<code>402</code> / <code>429</code> 余额不足或请求太频繁；<code>404</code> 模型名不对或该服务商没有这个模型。同一个模型配置了多个渠道时，App 会在出错时自动换下一个渠道。</p>
+</div></details>
+
+<details class="faq"><summary>联网搜索怎么用？为什么提示「不支持联网搜索」？</summary><div>
+<p>联网搜索使用各家服务商自带的能力（OpenAI、Anthropic、xAI、智谱、DeepSeek）。在输入框左边点放大镜开启。部分中转站不支持，这时 App 会按普通对话回答并给出提示。</p>
+</div></details>
+
+<details class="faq"><summary>语音输入中文里夹着英文，总是认错</summary><div>
+<p>系统语音识别一次只能识别一种语言。可以在「设置 → 语音输入」把识别方式改成「模型转写」，并选择一个支持语音转写的渠道和模型（例如 OpenAI 的 <code>gpt-4o-transcribe</code>、硅基流动的 <code>FunAudioLLM/SenseVoiceSmall</code>），中英混说就能识别正确。模型转写按服务商的价格计费。</p>
+</div></details>
+
+<details class="faq"><summary>如何在 iPhone、iPad 和 Mac 之间同步？</summary><div>
+<p>在每台设备上登录同一个 Apple 账户，并在「设置 → 数据」中打开「通过 iCloud 同步」。对话、文件夹、渠道、助手和提示词会自动同步；API Key 需要另外打开「同步 API Key」（通过 iCloud 钥匙串，端到端加密）。如果没有同步，请确认系统设置中 iCloud 云盘已开启。</p>
+</div></details>
+
+<details class="faq"><summary>换手机或者分享配置给别的设备</summary><div>
+<p>在「设置 → 数据 → 导出到剪贴板」导出渠道、模型和助手配置。包含 API Key 时需要设置一个密码，导出内容会用这个密码加密；在另一台设备导入时输入同一个密码即可。忘记密码就无法导入，我们也无法帮你找回。</p>
+</div></details>
+
+<details class="faq"><summary>开了应用锁，面容 ID 认不出来怎么办？</summary><div>
+<p>面容 ID 失败时可以改用设备密码解锁。应用锁可以在「设置 → 通用 → 应用锁」中关闭。</p>
+</div></details>
+
+<details class="faq"><summary>我的对话和 API Key 安全吗？</summary><div>
+<p>对话只保存在你的设备上（开启 iCloud 同步时也在你自己的 iCloud 里），API Key 保存在系统钥匙串。消息由你的设备直接发给你选择的服务商，不经过我们。详见<a href="privacy.html">隐私政策</a>。</p>
+</div></details>
+
+<details class="faq"><summary>如何删除我的数据？</summary><div>
+<p>可以在 App 里删除单个对话，或在「设置 → 数据」清空所有对话；删除渠道会同时删除它的 API Key；删除 App 会移除设备上的全部数据。iCloud 中的数据可在系统「设置 → [你的名字] → iCloud → 管理储存空间」中删除。XCAgent 没有账号，也没有保存在我们这边的数据。</p>
+</div></details>
+
+<details class="faq"><summary>AI 的回答一定正确吗？</summary><div>
+<p>不一定。AI 生成的内容可能不准确、过时或带有偏见，请自行核实重要信息，不要把它当作医疗、法律、财务等专业建议。</p>
+</div></details>
+</article>
+
+<!-- ───────────── English ───────────── -->
+<article class="en">
+<h1>Support</h1>
+<p class="meta">Questions, suggestions or a bug to report? We’d love to hear from you.</p>
+
+<div class="contact">
+  <a class="card" href="mailto:caojiacheng38@gmail.com?subject=XCAgent%20feedback">
+    <strong>Email us</strong>
+    <span>caojiacheng38@gmail.com</span>
+  </a>
+  <a class="card" href="https://github.com/CaoBill0522/XCAgent/issues">
+    <strong>Open a GitHub issue</strong>
+    <span>github.com/CaoBill0522/XCAgent/issues</span>
+  </a>
+</div>
+<p>We’ll get back to you as soon as we can. When reporting a problem, please include your device model and OS version, the app version (Settings → About), the provider and model you were using, and the error message or a screenshot. <strong>Never include your API key in an email or GitHub issue.</strong></p>
+
+<h2 id="download">Download</h2>
+<p>XCAgent is coming soon to the App Store for iPhone, iPad and Mac. A download link will appear here once it is available.</p>
+
+<h2>Getting started</h2>
+<ol>
+  <li>Get an API key from an AI provider such as OpenAI, Anthropic, DeepSeek, Zhipu, xAI, or a relay you use.</li>
+  <li>Open the app, go to Settings → Channels → Add channel, choose the provider (choose Custom / relay for a relay and enter its URL) and paste your key.</li>
+  <li>After saving, the app fetches the list of available models.</li>
+  <li>Start a new conversation from the home screen, pick one or more models and ask away.</li>
+</ol>
+
+<h2>FAQ</h2>
+
+<details class="faq"><summary>Does XCAgent cost anything? How are model costs billed?</summary><div>
+<p>XCAgent does not provide an AI service itself. Model usage is billed to you by your AI provider at its own prices; XCAgent never handles payments for it. See Settings → Usage for tokens used per model and channel.</p>
+</div></details>
+
+<details class="faq"><summary>No models after adding a channel</summary><div>
+<p>Check that the API key is correct and has credit, that the base URL is complete (OpenAI-compatible relays usually end in <code>/v1</code>), and that the protocol (OpenAI / Anthropic) is right. Some relays have no model list endpoint; add model names manually in the channel.</p>
+</div></details>
+
+<details class="faq"><summary>I get an error when sending a message</summary><div>
+<p>Errors come from the provider. Common causes: <code>401</code> invalid key; <code>402</code> / <code>429</code> out of credit or rate-limited; <code>404</code> wrong model name. When a model is set up on several channels, the app automatically fails over to the next one.</p>
+</div></details>
+
+<details class="faq"><summary>How does web search work?</summary><div>
+<p>Web search uses each provider’s built-in capability (OpenAI, Anthropic, xAI, Zhipu, DeepSeek). Tap the magnifier next to the input field to turn it on. Some relays don’t support it; the app then answers normally and shows a notice.</p>
+</div></details>
+
+<details class="faq"><summary>Voice input gets mixed Chinese and English wrong</summary><div>
+<p>System speech recognition handles one language at a time. In Settings → Voice input, switch to Model transcription and pick a channel and model that supports transcription (for example OpenAI <code>gpt-4o-transcribe</code>). Transcription is billed by your provider.</p>
+</div></details>
+
+<details class="faq"><summary>How do I sync between iPhone, iPad and Mac?</summary><div>
+<p>Sign in to the same Apple Account on each device and turn on “Sync with iCloud” under Settings → Data. Conversations, folders, channels, assistants and prompts sync automatically; API keys sync only if you also turn on “Sync API keys” (via iCloud Keychain, end-to-end encrypted). Make sure iCloud Drive is enabled in system Settings.</p>
+</div></details>
+
+<details class="faq"><summary>Moving to a new device</summary><div>
+<p>Use Settings → Data → Export to clipboard to export channels, models and assistants. If the export includes API keys you set a password that encrypts it; enter the same password when importing. We cannot recover a forgotten password.</p>
+</div></details>
+
+<details class="faq"><summary>App lock doesn’t recognise my face</summary><div>
+<p>If Face ID fails you can unlock with your device passcode. App lock can be turned off in Settings.</p>
+</div></details>
+
+<details class="faq"><summary>Are my conversations and API keys safe?</summary><div>
+<p>Conversations are stored only on your device (and in your own iCloud if you turn on sync). API keys are kept in the system keychain. Messages go straight from your device to the provider you chose, never through us. See the <a href="privacy.html">Privacy Policy</a>.</p>
+</div></details>
+
+<details class="faq"><summary>How do I delete my data?</summary><div>
+<p>Delete individual conversations in the app or clear them all under Settings → Data. Deleting a channel also deletes its API key, and deleting the app removes all of its data from the device. iCloud data can be removed under Settings → [your name] → iCloud → Manage Storage. XCAgent has no accounts and we hold no data about you.</p>
+</div></details>
+
+<details class="faq"><summary>Are AI answers always correct?</summary><div>
+<p>No. AI-generated content can be inaccurate, outdated or biased. Verify anything important and don’t rely on it as medical, legal, financial or other professional advice.</p>
+</div></details>
+</article>
+
+</main>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <span>© <span id="year">2026</span> Jiacheng Cao</span>
+    <nav>
+      <a href="support.html"><span class="zh">用户支持</span><span class="en">Support</span></a>
+      <a href="privacy.html"><span class="zh">隐私政策</span><span class="en">Privacy Policy</span></a>
+      <a href="terms.html"><span class="zh">使用条款</span><span class="en">Terms of Use</span></a>
+      <a href="https://github.com/CaoBill0522/XCAgent">GitHub</a>
+    </nav>
+  </div>
+</footer>
+<script src="assets/site.js"></script>
+</body>
+</html>
